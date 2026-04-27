@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Azure Updates</title>
+  <style>
+    :root {
+      --bg: #f6f9fc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #475569;
+      --link: #005a9c;
+      --accent: #dbeafe;
+      --border: #e2e8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 60%),
+        radial-gradient(900px 400px at 90% 0%, #e0f2fe 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 2rem;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:hover {
+      border-color: #93c5fd;
+      background: #f8fafc;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    ul {
+      list-style: none;
+      margin: 20px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    li {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 2px 8px rgba(2, 6, 23, 0.05);
+    }
+
+    a {
+      color: var(--link);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .empty {
+      margin-top: 20px;
+      background: var(--accent);
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 14px;
+      color: #1e3a8a;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>Azure Updates</h1>
+    <p class="sub">Loaded from output.json in this project folder.</p>
+    <div class="toolbar">
+      <button id="refresh-btn" type="button">Refresh</button>
+      <span id="status" class="status">Loading...</span>
+    </div>
+    <div id="empty" class="empty" hidden>No updates found in output.json.</div>
+    <ul id="updates"></ul>
+  </main>
+
+  <script>
+    const LOOKBACK_DAYS = 7;
+
+    function toDateText(dateValue) {
+      const parsed = new Date(dateValue);
+      if (Number.isNaN(parsed.getTime())) {
+        return "Unknown date";
+      }
+      return parsed.toLocaleString();
+    }
+
+    function normalizeUpdates(payload) {
+      const raw = Array.isArray(payload?.azure_updates) ? payload.azure_updates : [];
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - LOOKBACK_DAYS);
+      return raw
+        .filter((item) => item && item.title && item.url)
+        .filter((item) => {
+          const parsed = new Date(item.date);
+          return !Number.isNaN(parsed.getTime()) && parsed >= cutoff;
+        })
+        .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+    }
+
+    async function loadUpdates() {
+      const updatesEl = document.getElementById("updates");
+      const statusEl = document.getElementById("status");
+      const emptyEl = document.getElementById("empty");
+
+      statusEl.textContent = "Loading...";
+      updatesEl.innerHTML = "";
+      emptyEl.hidden = true;
+
+      try {
+        const cacheBust = Date.now();
+        const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const updates = normalizeUpdates(payload);
+
+        if (!updates.length) {
+          emptyEl.hidden = false;
+          statusEl.textContent = `Loaded 0 updates for last ${LOOKBACK_DAYS} days`;
+          return;
+        }
+
+        const fragment = document.createDocumentFragment();
+        for (const item of updates) {
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+            <div class="meta">${toDateText(item.date)}</div>
+          `;
+          fragment.appendChild(li);
+        }
+
+        updatesEl.appendChild(fragment);
+        statusEl.textContent = `Loaded ${updates.length} updates for last ${LOOKBACK_DAYS} days`;
+      } catch (error) {
+        statusEl.textContent = "Failed to load output.json";
+        emptyEl.hidden = false;
+        emptyEl.textContent = `Error: ${error.message}`;
+      }
+    }
+
+    document.getElementById("refresh-btn").addEventListener("click", loadUpdates);
+    loadUpdates();
+  </script>
+</body>
+</html>

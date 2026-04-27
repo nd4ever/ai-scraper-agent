@@ -22,6 +22,18 @@ python -m src.main --days 7 --out output.json
 
 Output: JSON file with `techcommunity` and `azure_updates` lists.
 
+Keep a strict 7-day window:
+- Local CLI: use `--days 7` (default is already 7).
+- Azure Function: set app setting `DAYS_BACK=7`.
+
+View local page:
+
+```bash
+python -m http.server 8000
+```
+
+Then open http://127.0.0.1:8000 to view `index.html`, which renders `azure_updates` from `output.json`.
+
 Scheduling (Windows Task Scheduler / cron): run the above command weekly.
 
 Azure Function deployment (simple):
@@ -41,6 +53,7 @@ func azure functionapp publish <APP_NAME>
 Environment notes:
 - Provide `AzureWebJobsStorage` or `AZURE_STORAGE_CONNECTION_STRING` as a setting.
 - Set `OUTPUT_CONTAINER` to the blob container name to store results; otherwise results are written to the function filesystem.
+- Set `DAYS_BACK=7` to fetch only the previous 7 days in scheduled runs.
 
 Azure CLI quick create (example):
 
