@@ -5,7 +5,11 @@ from datetime import datetime
 
 import azure.functions as func
 
-from src.scraper import fetch_techcommunity, fetch_azure_updates
+from src.scraper import (
+    fetch_azure_community_blog_headlines,
+    fetch_azure_updates,
+    fetch_techcommunity,
+)
 
 
 def _write_local(filename: str, content: str) -> str:
@@ -32,8 +36,13 @@ def main(mytimer: func.TimerRequest) -> None:
     days = int(os.getenv('DAYS_BACK', '7'))
     tech = fetch_techcommunity(days)
     updates = fetch_azure_updates(days)
+    azure_blog_headlines = fetch_azure_community_blog_headlines(days)
 
-    out = {'techcommunity': tech, 'azure_updates': updates}
+    out = {
+        'techcommunity': tech,
+        'azure_updates': updates,
+        'azure_community_blog_headlines': azure_blog_headlines,
+    }
     out_json = json.dumps(out, indent=2, ensure_ascii=False)
 
     timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')

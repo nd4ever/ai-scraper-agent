@@ -21,18 +21,44 @@ python -m src.main --days 7 --out output.json
 ```
 
 Output: JSON file with `techcommunity` and `azure_updates` lists.
+Also includes `azure_community_blog_headlines` for the last 7 days from these
+Azure Community blog categories:
+- Azure Arc Blog
+- Azure Architecture Blog
+- Azure Compute Blog
+- Azure Governance and Management
+- Azure Infrastructure Blog
+- Azure Integration Services Blog
+- Azure Migration and Modernization
+- Azure Networking Blog
+- Azure Observability Blog
+- Azure Storage Blog
+- Azure Tools Blog
+- FinOps Blog
 
 Keep a strict 7-day window:
 - Local CLI: use `--days 7` (default is already 7).
 - Azure Function: set app setting `DAYS_BACK=7`.
 
-View local page:
+View local page (always refreshes data before serving):
 
 ```bash
-python -m http.server 8000
+python serve_web.py --days 7 --port 8000
 ```
 
-Then open http://127.0.0.1:8000 to view `index.html`, which renders `azure_updates` from `output.json`.
+Windows double-click launcher:
+
+```bat
+start_web.bat
+```
+
+Double-click `start_web.bat` from File Explorer to refresh `output.json` and start the local page.
+
+Then open http://127.0.0.1:8000 to view `index.html`, which renders:
+- **Azure Community Blog Headlines** — articles from the specified Azure Community blog categories
+- **Azure Updates** — official Azure service announcements
+
+Both lists are from the last 7 days. The page regenerates `output.json` on every launch so you always see the latest results.
 
 Scheduling (Windows Task Scheduler / cron): run the above command weekly.
 

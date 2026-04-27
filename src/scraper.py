@@ -1,9 +1,9 @@
 import requests
 from bs4 import BeautifulSoup
 from dateutil import parser
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 from urllib.parse import urljoin
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 import json
 import re
 import warnings
@@ -13,7 +13,46 @@ try:
 except Exception:  # pragma: no cover
     XMLParsedAsHTMLWarning = None
 
+try:
+    from dateutil.parser import UnknownTimezoneWarning
+except Exception:  # pragma: no cover
+    UnknownTimezoneWarning = Warning
+
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible)"}
+
+AZURE_BLOG_CATEGORY_BY_SLUG = {
+    'azurearcblog': 'Azure Arc Blog',
+    'azurearchitectureblog': 'Azure Architecture Blog',
+    'azurecomputeblog': 'Azure Compute Blog',
+    'azuregovernanceandmanagement': 'Azure Governance and Management Blog',
+    'azureinfrastructureblog': 'Azure Infrastructure Blog',
+    'azureintegrationservicesblog': 'Azure Integration Services Blog',
+    'azuremigrationandmodernization': 'Azure Migration and Modernization Blog',
+    'azurenetworkingblog': 'Azure Networking Blog',
+    'azureobservabilityblog': 'Azure Observability Blog',
+    'azurestorageblog': 'Azure Storage Blog',
+    'azuretoolsblog': 'Azure Tools Blog',
+    'azurevirtualdesktopblog': 'Azure Virtual Desktop Blog',
+    'finopsblog': 'FinOps Blog',
+    'linuxandopensourceblog': 'Linux and Open Source Blog',
+}
+
+AZURE_BLOG_BOARD_ID_BY_SLUG = {
+    'azurearcblog': 'AzureArcBlog',
+    'azurearchitectureblog': 'AzureArchitectureBlog',
+    'azurecomputeblog': 'AzureComputeBlog',
+    'azuregovernanceandmanagement': 'AzureGovernanceandManagement',
+    'azureinfrastructureblog': 'AzureInfrastructureBlog',
+    'azureintegrationservicesblog': 'AzureIntegrationServicesBlog',
+    'azuremigrationandmodernization': 'AzureMigrationandModernization',
+    'azurenetworkingblog': 'AzureNetworkingBlog',
+    'azureobservabilityblog': 'AzureObservabilityBlog',
+    'azurestorageblog': 'AzureStorageBlog',
+    'azuretoolsblog': 'AzureToolsBlog',
+    'azurevirtualdesktopblog': 'AzureVirtualDesktopBlog',
+    'finopsblog': 'FinOpsBlog',
+    'linuxandopensourceblog': 'LinuxandOpenSourceBlog',
+}
 
 
 def fetch_url(url: str) -> str:
@@ -26,7 +65,9 @@ def parse_date(text: str) -> Optional[datetime]:
     if not text:
         return None
     try:
-        return parser.parse(text, fuzzy=True)
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=UnknownTimezoneWarning)
+            return parser.parse(text, fuzzy=True)
     except Exception:
         return None
 
@@ -51,19 +92,110 @@ def _looks_like_azure_update_url(href: str) -> bool:
     return '/updates' in href_l and ('azure.microsoft.com' in href_l or href_l.startswith('/'))
 
 
+def _normalize_azure_update_title(title: str) -> str:
+    title = re.sub(r'\s+', ' ', (title or '')).strip()
+
+    # Azure update feed items often include "[Launched] Generally Available: ...".
+    # Prefer the release ring from the announcement body for clearer labeling.
+    m = re.match(r'^\[[^\]]+\]\s*Generally Available:\s*(.+)$', title, re.I)
+    if m:
+        return f"[Generally Available] {m.group(1).strip()}"
+
+    m = re.match(r'^Generally Available:\s*(.+)$', title, re.I)
+    if m:
+        return f"[Generally Available] {m.group(1).strip()}"
+
+    return title
+
+
+def _extract_azure_update_status_and_title(title: str) -> Tuple[Optional[str], str]:
+    title = _normalize_azure_update_title(title)
+    if not title:
+        return None, ''
+
+    bracket_status = None
+    body = title
+
+    m = re.match(r'^\[([^\]]+)\]\s*(.+)$', title)
+    if m:
+        bracket_status = m.group(1).strip()
+        body = m.group(2).strip()
+
+    # Prefer the explicit release ring that appears before the announcement title.
+    # Example: "[Launched] Generally Available: ..." -> status="Generally Available".
+    m = re.match(r'^(Generally Available|Public Preview|Private Preview|Retirement):\s*(.+)$', body, re.I)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+
+    return bracket_status, body
+
+
 def _normalize_item(title: str, href: str, date_iso: str, base_url: str) -> Optional[Dict]:
-    title = (title or '').strip()
+    status, clean_title = _extract_azure_update_status_and_title(title)
+    title = clean_title
     if not title or len(title) < 4:
         return None
     if title.lower() in {'read more', 'learn more', 'details'}:
         return None
     if not href:
         return None
-    return {
+    item = {
         'title': re.sub(r'\s+', ' ', title),
         'url': urljoin(base_url, href),
         'date': date_iso,
     }
+    if status:
+        item['status'] = status
+    else:
+        item['status'] = None
+    return item
+
+
+MRC_API_BASE = 'https://www.microsoft.com/releasecommunications/api/v2/azure'
+
+
+def _extract_update_id(update_url: str) -> Optional[str]:
+    m = re.search(r'[?&]id=(\d+)', update_url or '', re.I)
+    return m.group(1) if m else None
+
+
+def _fetch_learn_more_from_mrc_api(update_url: str) -> Optional[str]:
+    """Fetch the MRC JSON API for one update and extract its Learn more link.
+
+    URL pattern: https://www.microsoft.com/releasecommunications/api/v2/azure/{id}
+    The 'description' field is full HTML that contains the announcement-specific
+    learn.microsoft.com link.
+    """
+    update_id = _extract_update_id(update_url)
+    if not update_id:
+        return None
+    api_url = f'{MRC_API_BASE}/{update_id}'
+    try:
+        resp = requests.get(api_url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        return None
+
+    description_html = data.get('description') or ''
+    if not description_html:
+        return None
+
+    soup = BeautifulSoup(description_html, 'html.parser')
+    # First pass: prefer an anchor whose visible text says "Learn more" that
+    # points to learn.microsoft.com — always the announcement-specific docs link.
+    for a in soup.find_all('a', href=True):
+        href = (a.get('href') or '').strip()
+        text = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip().lower()
+        if 'learn' in text and 'more' in text and 'learn.microsoft.com' in href.lower():
+            return href
+    # Second pass: any anchor with "learn more" text.
+    for a in soup.find_all('a', href=True):
+        href = (a.get('href') or '').strip()
+        text = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip().lower()
+        if 'learn' in text and 'more' in text and href.startswith('http'):
+            return href
+    return None
 
 
 def _dedupe_items(items: List[Dict]) -> List[Dict]:
@@ -78,7 +210,47 @@ def _dedupe_items(items: List[Dict]) -> List[Dict]:
     return out
 
 
+def _extract_blog_category_slug(href: str) -> Optional[str]:
+    if not href:
+        return None
+    m = re.search(r'/category/azure/blog/([^/?#]+)', href, re.I)
+    if not m:
+        return None
+    return m.group(1).strip().lower()
+
+
+def _find_blog_category_for_link(anchor) -> Optional[str]:
+    # Walk a few ancestors and look for the parent category link in the same card.
+    current = anchor
+    for _ in range(6):
+        if current is None:
+            break
+        try:
+            links = current.find_all('a', href=True)
+        except Exception:
+            links = []
+        for link in links:
+            slug = _extract_blog_category_slug(link.get('href', ''))
+            if slug and slug in AZURE_BLOG_CATEGORY_BY_SLUG:
+                return AZURE_BLOG_CATEGORY_BY_SLUG[slug]
+        current = current.parent
+    return None
+
+
 def _find_date_near(node) -> Optional[datetime]:
+    def _parse_from_tag_date_attrs(tag) -> Optional[datetime]:
+        for attr in ('datetime', 'title', 'data-date', 'data-time', 'data-timestamp'):
+            try:
+                val = tag.get(attr) if hasattr(tag, 'get') else None
+            except Exception:
+                val = None
+            if not val:
+                continue
+            d = parse_date(str(val))
+            if d:
+                return d
+        return None
+
     # search inside node
     time_tag = node.find('time') if hasattr(node, 'find') else None
     if time_tag:
@@ -88,6 +260,19 @@ def _find_date_near(node) -> Optional[datetime]:
             d = parse_date(time_tag.get_text(strip=True))
         if d:
             return d
+
+    # Tech Community cards often carry publish date in a title attribute.
+    if hasattr(node, 'find_all'):
+        for tag in node.find_all(attrs={'title': True}, limit=15):
+            d = _parse_from_tag_date_attrs(tag)
+            if d:
+                return d
+
+        # Generic fallback for explicit date attributes.
+        for tag in node.find_all(limit=20):
+            d = _parse_from_tag_date_attrs(tag)
+            if d:
+                return d
 
     # search for common date spans
     for cls in ('date', 'posted', 'published', 'timestamp'):
@@ -116,6 +301,17 @@ def _find_date_near(node) -> Optional[datetime]:
                     d = parse_date(time_tag.get_text(strip=True))
                 if d:
                     return d
+
+            # Parent cards may hold the publish date in attributes.
+            d = _parse_from_tag_date_attrs(anc)
+            if d:
+                return d
+
+            if hasattr(anc, 'find_all'):
+                for tag in anc.find_all(attrs={'title': True}, limit=6):
+                    d = _parse_from_tag_date_attrs(tag)
+                    if d:
+                        return d
     return None
 
 
@@ -129,6 +325,32 @@ def filter_recent(items: List[Dict], days: int = 7) -> List[Dict]:
         except Exception:
             continue
         if dt.date() >= cutoff:
+            filtered.append(it)
+    return filtered
+
+
+def get_previous_week_range() -> Tuple[date_type, date_type]:
+    """Return (monday, sunday) of the most recently completed Mon–Sun week."""
+    today = date_type.today()
+    current_monday = today - timedelta(days=today.weekday())
+    prev_monday = current_monday - timedelta(weeks=1)
+    prev_sunday = current_monday - timedelta(days=1)
+    return prev_monday, prev_sunday
+
+
+def filter_date_range(
+    items: List[Dict],
+    start_date: date_type,
+    end_date: date_type,
+) -> List[Dict]:
+    """Keep only items whose date falls within [start_date, end_date] inclusive."""
+    filtered: List[Dict] = []
+    for it in items:
+        try:
+            dt = parser.parse(it['date']).date()
+        except Exception:
+            continue
+        if start_date <= dt <= end_date:
             filtered.append(it)
     return filtered
 
@@ -180,6 +402,7 @@ def _fetch_azure_updates_from_feed(base_url: str) -> List[Dict]:
 
             item = _normalize_item(title, href, date_iso, base_url)
             if item:
+                item['learn_more_url'] = _fetch_learn_more_from_mrc_api(item['url'])
                 items.append(item)
 
         if items:
@@ -188,7 +411,7 @@ def _fetch_azure_updates_from_feed(base_url: str) -> List[Dict]:
     return []
 
 
-def fetch_techcommunity(days: int = 7) -> List[Dict]:
+def fetch_techcommunity(start_date: date_type, end_date: date_type) -> List[Dict]:
     url = 'https://techcommunity.microsoft.com/category/azure'
     html = fetch_url(url)
     soup = BeautifulSoup(html, 'html.parser')
@@ -221,15 +444,84 @@ def fetch_techcommunity(days: int = 7) -> List[Dict]:
                 if d:
                     items.append({'title': title, 'url': urljoin(url, href), 'date': d.isoformat()})
 
-    return filter_recent(items, days)
+    return filter_date_range(items, start_date, end_date)
 
 
-def fetch_azure_updates(days: int = 7) -> List[Dict]:
+def fetch_azure_community_blog_headlines(start_date: date_type, end_date: date_type) -> List[Dict]:
+    """Fetch blog posts from multiple Azure blog sources."""
+    items: List[Dict] = []
+    
+    # Blog slugs to fetch (in order of display)
+    blog_slugs = [
+        'azurearcblog',
+        'azurearchitectureblog',
+        'azurecomputeblog',
+        'azuregovernanceandmanagement',
+        'azureinfrastructureblog',
+        'azureintegrationservicesblog',
+        'azuremigrationandmodernization',
+        'azurenetworkingblog',
+        'azureobservabilityblog',
+        'azurestorageblog',
+        'azuretoolsblog',
+        'azurevirtualdesktopblog',
+        'finopsblog',
+        'linuxandopensourceblog',
+    ]
+    
+    if XMLParsedAsHTMLWarning is not None:
+        warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
+    
+    for slug in blog_slugs:
+        category_name = AZURE_BLOG_CATEGORY_BY_SLUG.get(slug, slug)
+        board_id = AZURE_BLOG_BOARD_ID_BY_SLUG.get(slug, slug)
+        rss_url = f'https://techcommunity.microsoft.com/t5/s/gxcuf89792/rss/board?board.id={board_id}'
+        
+        try:
+            feed_xml = fetch_url(rss_url)
+        except Exception:
+            continue
+        
+        feed_soup = BeautifulSoup(feed_xml, 'html.parser')
+        
+        for entry in feed_soup.find_all('item'):
+            title_tag = entry.find('title')
+            link_tag = entry.find('link')
+            date_tag = entry.find(['pubdate', 'published', 'updated', 'dc:date'])
+
+            title = re.sub(r'\s+', ' ', title_tag.get_text(' ', strip=True) if title_tag else '').strip()
+            href = ''
+            if link_tag:
+                href = (link_tag.get('href') or link_tag.get_text(strip=True) or '').strip()
+            if not href:
+                # TechCommunity RSS has malformed <link/> tags; extract URL from raw entry XML
+                # URLs can be /blog/... or /t5/.../...  format
+                m = re.search(r'https?://techcommunity\.microsoft\.com/[^\s<]+', str(entry), re.I)
+                if m:
+                    href = m.group(0)
+            date_iso = _parse_date_to_iso(date_tag.get_text(strip=True) if date_tag else '')
+
+            if not title or not href or not date_iso:
+                continue
+
+            items.append({
+                'category': category_name,
+                'title': title,
+                'url': urljoin(rss_url, href),
+                'date': date_iso,
+            })
+
+    deduped = _dedupe_items(items)
+    recent = filter_date_range(deduped, start_date, end_date)
+    return sorted(recent, key=lambda it: it.get('date', ''), reverse=True)
+
+
+def fetch_azure_updates(start_date: date_type, end_date: date_type) -> List[Dict]:
     url = 'https://azure.microsoft.com/en-us/updates/'
     # Primary: official release communications RSS feed.
     feed_items = _fetch_azure_updates_from_feed(url)
     if feed_items:
-        return filter_recent(feed_items, days)
+        return filter_date_range(feed_items, start_date, end_date)
 
     try:
         html = fetch_url(url)
@@ -293,4 +585,4 @@ def fetch_azure_updates(days: int = 7) -> List[Dict]:
                 items.append(item)
 
     items = _dedupe_items(items)
-    return filter_recent(items, days)
+    return filter_date_range(items, start_date, end_date)
