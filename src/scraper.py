@@ -54,6 +54,57 @@ AZURE_BLOG_BOARD_ID_BY_SLUG = {
     'linuxandopensourceblog': 'LinuxandOpenSourceBlog',
 }
 
+YOUTUBE_VIDEO_CHANNELS = [
+    {
+        'name': 'NTFAQGuy',
+        'page_url': 'https://www.youtube.com/@NTFAQGuy/videos',
+    },
+    {
+        'name': 'MicrosoftAzure',
+        'page_url': 'https://www.youtube.com/@MicrosoftAzure/videos',
+    },
+    {
+        'name': 'MSFTMechanics',
+        'page_url': 'https://www.youtube.com/@MSFTMechanics/videos',
+    },
+    {
+        'name': 'MicrosoftSecurityCommunity',
+        'page_url': 'https://www.youtube.com/@MicrosoftSecurityCommunity/videos',
+    },
+    {
+        'name': 'AzureArcServerForum',
+        'page_url': 'https://www.youtube.com/@AzureArcServerForum/videos',
+    },
+]
+
+AZURE_VIDEO_TITLE_KEYWORDS = [
+    'azure',
+    'aks',
+    'app service',
+    'api management',
+    'arc',
+    'bicep',
+    'container apps',
+    'cosmos db',
+    'data factory',
+    'devops',
+    'entra',
+    'foundry',
+    'function app',
+    'functions',
+    'key vault',
+    'landing zone',
+    'logic apps',
+    'microsoft fabric',
+    'openai',
+    'power platform',
+    'sentinel',
+    'service bus',
+    'sql mi',
+    'virtual desktop',
+    'vnet',
+]
+
 
 def fetch_url(url: str) -> str:
     resp = requests.get(url, headers=HEADERS, timeout=15)
@@ -159,12 +210,11 @@ def _extract_update_id(update_url: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def _fetch_learn_more_from_mrc_api(update_url: str) -> Optional[str]:
-    """Fetch the MRC JSON API for one update and extract its Learn more link.
+def _fetch_mrc_update_details(update_url: str) -> Optional[Dict]:
+    """Fetch the MRC JSON API for one update and extract metadata.
 
     URL pattern: https://www.microsoft.com/releasecommunications/api/v2/azure/{id}
-    The 'description' field is full HTML that contains the announcement-specific
-    learn.microsoft.com link.
+    Returns product names and all documentation links found in description HTML.
     """
     update_id = _extract_update_id(update_url)
     if not update_id:
@@ -178,24 +228,90 @@ def _fetch_learn_more_from_mrc_api(update_url: str) -> Optional[str]:
         return None
 
     description_html = data.get('description') or ''
-    if not description_html:
+    products = data.get('products') or []
+    product_categories = data.get('productCategories') or []
+    product_names = [str(p).strip() for p in products if str(p).strip()]
+    category_names = [str(c).strip() for c in product_categories if str(c).strip()]
+
+    documentation_links: List[str] = []
+    learn_more_url: Optional[str] = None
+    if description_html:
+        soup = BeautifulSoup(description_html, 'html.parser')
+        for a in soup.find_all('a', href=True):
+            href = (a.get('href') or '').strip()
+            if not href.startswith('http'):
+                continue
+            if href not in documentation_links:
+                documentation_links.append(href)
+
+            text = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip().lower()
+            if learn_more_url is None and 'learn' in text and 'more' in text:
+                learn_more_url = href
+
+        if learn_more_url is None and documentation_links:
+            learn_more_url = documentation_links[0]
+
+    product_name = product_names[0] if product_names else (category_names[0] if category_names else None)
+    return {
+        'product': product_name,
+        'products': product_names,
+        'product_categories': category_names,
+        'documentation_links': documentation_links,
+        'learn_more_url': learn_more_url,
+    }
+
+
+def _infer_product_from_title(title: str) -> Optional[str]:
+    text = re.sub(r'\s+', ' ', (title or '')).strip()
+    if not text:
         return None
 
-    soup = BeautifulSoup(description_html, 'html.parser')
-    # First pass: prefer an anchor whose visible text says "Learn more" that
-    # points to learn.microsoft.com — always the announcement-specific docs link.
-    for a in soup.find_all('a', href=True):
-        href = (a.get('href') or '').strip()
-        text = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip().lower()
-        if 'learn' in text and 'more' in text and 'learn.microsoft.com' in href.lower():
-            return href
-    # Second pass: any anchor with "learn more" text.
-    for a in soup.find_all('a', href=True):
-        href = (a.get('href') or '').strip()
-        text = re.sub(r'\s+', ' ', a.get_text(' ', strip=True)).strip().lower()
-        if 'learn' in text and 'more' in text and href.startswith('http'):
-            return href
+    stop_words = {'in', 'for', 'on', 'with', 'from', 'and', 'to', 'at'}
+
+    patterns = [
+        r'(Azure [A-Za-z0-9\- ]{2,60}?)\s+(?:supports|support|is|are|now|for|from|in|on|with)\b',
+        r'\b(?:in|for|on|with|from)\s+(Azure [A-Za-z0-9\- ]{2,60}?)\b',
+    ]
+    for pattern in patterns:
+        m = re.search(pattern, text, re.I)
+        if m:
+            candidate = re.sub(r'\s+', ' ', m.group(1)).strip(' :-')
+            words = candidate.split()
+            while words and words[-1].lower() in stop_words:
+                words.pop()
+            candidate = ' '.join(words).strip()
+
+            if not candidate or candidate.lower() == 'azure':
+                continue
+            if len(words) >= 2 and words[0].lower() == 'azure' and words[1].lower() in stop_words:
+                continue
+
+            if candidate and candidate.lower() != 'azure':
+                return candidate
     return None
+
+
+def _enrich_azure_update_item(item: Dict) -> Dict:
+    details = _fetch_mrc_update_details(item.get('url', ''))
+    if details:
+        item['product'] = details.get('product')
+        item['products'] = details.get('products') or []
+        item['product_categories'] = details.get('product_categories') or []
+        item['documentation_links'] = details.get('documentation_links') or []
+        item['learn_more_url'] = details.get('learn_more_url')
+    else:
+        item.setdefault('product', None)
+        item.setdefault('products', [])
+        item.setdefault('product_categories', [])
+        item.setdefault('documentation_links', [])
+        item.setdefault('learn_more_url', None)
+
+    if not item.get('product'):
+        inferred = _infer_product_from_title(item.get('title', ''))
+        if inferred:
+            item['product'] = inferred
+
+    return item
 
 
 def _dedupe_items(items: List[Dict]) -> List[Dict]:
@@ -208,6 +324,107 @@ def _dedupe_items(items: List[Dict]) -> List[Dict]:
         seen.add(key)
         out.append(it)
     return out
+
+
+def _extract_youtube_feed_url(channel_page_url: str) -> Optional[str]:
+    try:
+        html = fetch_url(channel_page_url)
+    except Exception:
+        return None
+
+    soup = BeautifulSoup(html, 'html.parser')
+    for link in soup.find_all('link', href=True):
+        rel = link.get('rel') or []
+        rel_values = [str(value).lower() for value in rel]
+        link_type = str(link.get('type') or '').lower()
+        if 'alternate' in rel_values and link_type == 'application/rss+xml':
+            return str(link.get('href') or '').strip() or None
+
+    canonical = soup.find('link', rel='canonical', href=True)
+    canonical_href = str(canonical.get('href') or '').strip() if canonical else ''
+    m = re.search(r'/channel/(UC[\w-]+)', canonical_href)
+    if m:
+        return f'https://www.youtube.com/feeds/videos.xml?channel_id={m.group(1)}'
+
+    m = re.search(r'channelId\":\"(UC[\w-]+)', html)
+    if m:
+        return f'https://www.youtube.com/feeds/videos.xml?channel_id={m.group(1)}'
+
+    return None
+
+
+def _is_azure_related_video_title(title: str) -> bool:
+    normalized = re.sub(r'\s+', ' ', (title or '')).strip().lower()
+    if not normalized:
+        return False
+    return any(keyword in normalized for keyword in AZURE_VIDEO_TITLE_KEYWORDS)
+
+
+def fetch_youtube_channel_videos(
+    channel_name: str,
+    channel_page_url: str,
+    start_date: date_type,
+    end_date: date_type,
+) -> List[Dict]:
+    feed_url = _extract_youtube_feed_url(channel_page_url)
+    if not feed_url:
+        return []
+
+    try:
+        feed_xml = fetch_url(feed_url)
+    except Exception:
+        return []
+
+    if XMLParsedAsHTMLWarning is not None:
+        warnings.filterwarnings('ignore', category=XMLParsedAsHTMLWarning)
+
+    feed_soup = BeautifulSoup(feed_xml, 'html.parser')
+    items: List[Dict] = []
+
+    for entry in feed_soup.find_all(['entry', 'item']):
+        title_tag = entry.find('title')
+        link_tag = entry.find('link')
+        date_tag = entry.find(['published', 'updated', 'pubdate'])
+
+        title = re.sub(r'\s+', ' ', title_tag.get_text(' ', strip=True) if title_tag else '').strip()
+        href = ''
+        if link_tag:
+            href = (link_tag.get('href') or link_tag.get_text(strip=True) or '').strip()
+        if not href:
+            m = re.search(r'https?://www\.youtube\.com/watch\?v=[^\s<\"]+', str(entry), re.I)
+            if m:
+                href = m.group(0)
+
+        date_iso = _parse_date_to_iso(date_tag.get_text(strip=True) if date_tag else '')
+        if not title or not href or not date_iso or not _is_azure_related_video_title(title):
+            continue
+
+        items.append({
+            'channel': channel_name,
+            'channel_url': channel_page_url,
+            'title': title,
+            'url': href,
+            'date': date_iso,
+        })
+
+    recent = filter_date_range(_dedupe_items(items), start_date, end_date)
+    return sorted(recent, key=lambda it: it.get('date', ''), reverse=True)
+
+
+def fetch_azure_youtube_videos(start_date: date_type, end_date: date_type) -> List[Dict]:
+    items: List[Dict] = []
+    for channel in YOUTUBE_VIDEO_CHANNELS:
+        items.extend(
+            fetch_youtube_channel_videos(
+                channel_name=channel['name'],
+                channel_page_url=channel['page_url'],
+                start_date=start_date,
+                end_date=end_date,
+            )
+        )
+
+    deduped = _dedupe_items(items)
+    return sorted(deduped, key=lambda it: it.get('date', ''), reverse=True)
 
 
 def _extract_blog_category_slug(href: str) -> Optional[str]:
@@ -365,7 +582,7 @@ def _walk_json(obj):
             yield from _walk_json(i)
 
 
-def _fetch_azure_updates_from_feed(base_url: str) -> List[Dict]:
+def _fetch_azure_updates_from_feed(base_url: str, enrich: bool = False) -> List[Dict]:
     feed_urls = [
         'https://www.microsoft.com/releasecommunications/api/v2/azure/rss',
         'https://azure.microsoft.com/en-us/updates/feed/',
@@ -401,8 +618,16 @@ def _fetch_azure_updates_from_feed(base_url: str) -> List[Dict]:
                 continue
 
             item = _normalize_item(title, href, date_iso, base_url)
-            if item:
-                item['learn_more_url'] = _fetch_learn_more_from_mrc_api(item['url'])
+            if not item:
+                continue
+            if enrich:
+                items.append(_enrich_azure_update_item(item))
+            else:
+                item.setdefault('product', _infer_product_from_title(item.get('title', '')))
+                item.setdefault('products', [])
+                item.setdefault('product_categories', [])
+                item.setdefault('documentation_links', [])
+                item.setdefault('learn_more_url', None)
                 items.append(item)
 
         if items:
@@ -516,10 +741,10 @@ def fetch_azure_community_blog_headlines(start_date: date_type, end_date: date_t
     return sorted(recent, key=lambda it: it.get('date', ''), reverse=True)
 
 
-def fetch_azure_updates(start_date: date_type, end_date: date_type) -> List[Dict]:
+def fetch_azure_updates(start_date: date_type, end_date: date_type, enrich: bool = False) -> List[Dict]:
     url = 'https://azure.microsoft.com/en-us/updates/'
     # Primary: official release communications RSS feed.
-    feed_items = _fetch_azure_updates_from_feed(url)
+    feed_items = _fetch_azure_updates_from_feed(url, enrich=enrich)
     if feed_items:
         return filter_date_range(feed_items, start_date, end_date)
 
@@ -554,7 +779,16 @@ def fetch_azure_updates(start_date: date_type, end_date: date_type) -> List[Dict
             if not date_iso:
                 continue
             item = _normalize_item(str(title), str(href), date_iso, url)
-            if item:
+            if not item:
+                continue
+            if enrich:
+                items.append(_enrich_azure_update_item(item))
+            else:
+                item.setdefault('product', _infer_product_from_title(item.get('title', '')))
+                item.setdefault('products', [])
+                item.setdefault('product_categories', [])
+                item.setdefault('documentation_links', [])
+                item.setdefault('learn_more_url', None)
                 items.append(item)
 
     # Strategy 2: robust HTML card extraction with broader date fallbacks.
@@ -581,7 +815,16 @@ def fetch_azure_updates(start_date: date_type, end_date: date_type) -> List[Dict
             if not date_iso:
                 continue
             item = _normalize_item(title, href, date_iso, url)
-            if item:
+            if not item:
+                continue
+            if enrich:
+                items.append(_enrich_azure_update_item(item))
+            else:
+                item.setdefault('product', _infer_product_from_title(item.get('title', '')))
+                item.setdefault('products', [])
+                item.setdefault('product_categories', [])
+                item.setdefault('documentation_links', [])
+                item.setdefault('learn_more_url', None)
                 items.append(item)
 
     items = _dedupe_items(items)
