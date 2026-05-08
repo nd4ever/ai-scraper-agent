@@ -6,6 +6,7 @@ from pathlib import Path
 from src.scraper import (
     fetch_azure_community_blog_headlines,
     fetch_azure_updates,
+    fetch_azure_youtube_videos,
     fetch_techcommunity,
 )
 from src.scraper import get_previous_week_range
@@ -16,6 +17,7 @@ def refresh_output(output_path: str) -> dict:
     tech = fetch_techcommunity(start_date, end_date)
     updates = fetch_azure_updates(start_date, end_date)
     azure_blog_headlines = fetch_azure_community_blog_headlines(start_date, end_date)
+    azure_youtube_videos = fetch_azure_youtube_videos(start_date, end_date)
 
     payload = {
         "week_start": start_date.isoformat(),
@@ -23,6 +25,7 @@ def refresh_output(output_path: str) -> dict:
         "techcommunity": tech,
         "azure_updates": updates,
         "azure_community_blog_headlines": azure_blog_headlines,
+        "azure_youtube_videos": azure_youtube_videos,
     }
 
     Path(output_path).write_text(
@@ -48,7 +51,8 @@ def main() -> None:
         "Wrote "
         f"{len(payload['techcommunity'])} techcommunity items and "
         f"{len(payload['azure_updates'])} azure updates and "
-        f"{len(payload['azure_community_blog_headlines'])} azure community blog headlines "
+        f"{len(payload['azure_community_blog_headlines'])} azure community blog headlines and "
+        f"{len(payload['azure_youtube_videos'])} Azure YouTube videos "
         f"to {args.out}"
     )
 

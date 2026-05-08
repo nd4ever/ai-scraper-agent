@@ -36,6 +36,10 @@ Azure Community blog categories:
 - Azure Tools Blog
 - FinOps Blog
 
+Also includes `azure_youtube_videos` for the last completed Mon-Sun week.
+Current channel list under test:
+- https://www.youtube.com/@NTFAQGuy/videos
+
 Keep a strict 7-day window:
 - Local CLI: use `--days 7` (default is already 7).
 - Azure Function: set app setting `DAYS_BACK=7`.
@@ -57,6 +61,7 @@ Double-click `start_web.bat` from File Explorer to refresh `output.json` and sta
 Then open http://127.0.0.1:8000 to view `index.html`, which renders:
 - **Azure Community Blog Headlines** — articles from the specified Azure Community blog categories
 - **Azure Updates** — official Azure service announcements
+- **Azure Videos** — YouTube video titles from configured Azure-focused channels
 
 Both lists are from the last 7 days. The page regenerates `output.json` on every launch so you always see the latest results.
 
