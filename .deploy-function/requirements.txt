@@ -1,0 +1,5 @@
+requests
+beautifulsoup4
+python-dateutil
+azure-functions
+azure-storage-blob

@@ -94,6 +94,14 @@
       color: var(--text);
     }
 
+    .video-channel-heading {
+      font-style: italic;
+      font-weight: normal;
+      margin: 18px 0 8px;
+      font-size: 1rem;
+      color: var(--text);
+    }
+
     .empty-category {
       margin: 0 0 12px;
       color: var(--muted);
@@ -234,6 +242,9 @@
 
     <h2 class="azure-blogs-heading">Azure Blogs</h2>
     <div id="blogs-container"></div>
+
+    <h2 class="azure-blogs-heading">Azure Videos</h2>
+    <div id="videos-container"></div>
   </main>
 
   <script>
@@ -345,12 +356,14 @@
 
     async function loadUpdates() {
       const updatesEl = document.getElementById("updates");
+      const videosContainerEl = document.getElementById("videos-container");
       const blogsContainerEl = document.getElementById("blogs-container");
       const statusEl = document.getElementById("status");
       const emptyEl = document.getElementById("empty");
 
       statusEl.textContent = "Loading...";
       updatesEl.innerHTML = "";
+      videosContainerEl.innerHTML = "";
       blogsContainerEl.innerHTML = "";
       emptyEl.hidden = true;
 
@@ -363,11 +376,13 @@
 
         const payload = await response.json();
         const updatesRaw = Array.isArray(payload?.azure_updates) ? payload.azure_updates : [];
+        const videosRaw = Array.isArray(payload?.azure_youtube_videos) ? payload.azure_youtube_videos : [];
         const blogsRaw = Array.isArray(payload?.azure_community_blog_headlines)
           ? payload.azure_community_blog_headlines
           : [];
 
         const updates = normalizeItems(updatesRaw);
+        const videos = normalizeItems(videosRaw);
         const blogs = normalizeItems(blogsRaw);
 
         const weekLabel = document.getElementById("week-label");
@@ -377,7 +392,7 @@
           weekLabel.textContent = "Loaded from output.json";
         }
 
-        if (!updates.length && !blogs.length) {
+        if (!updates.length && !videos.length && !blogs.length) {
           emptyEl.hidden = false;
           statusEl.textContent = "Loaded 0 items";
           return;
@@ -407,6 +422,49 @@
             <div class="meta">${toDateText(item.date)}</div>
           `;
           updatesFragment.appendChild(li);
+        }
+
+        const videosByChannel = {};
+        for (const item of videos) {
+          const channel = item.channel || 'Other';
+          if (!videosByChannel[channel]) {
+            videosByChannel[channel] = [];
+          }
+          videosByChannel[channel].push(item);
+        }
+
+        const videoChannelOrder = [
+          'NTFAQGuy',
+          'MicrosoftAzure',
+          'MSFTMechanics',
+          'MicrosoftSecurityCommunity',
+          'AzureArcServerForum',
+        ];
+
+        const videosFragment = document.createDocumentFragment();
+        for (const channel of videoChannelOrder) {
+          const channelItems = videosByChannel[channel] || [];
+          const channelUrl = channelItems[0]?.channel_url || "";
+
+          const heading = document.createElement("h3");
+          heading.className = "video-channel-heading";
+          if (channelUrl) {
+            heading.innerHTML = `<a href="${channelUrl}" target="_blank" rel="noopener noreferrer">${channel}</a>: (${channelItems.length})`;
+          } else {
+            heading.textContent = `${channel}: (${channelItems.length})`;
+          }
+          videosFragment.appendChild(heading);
+
+          const ul = document.createElement("ul");
+          for (const item of channelItems) {
+            const li = document.createElement("li");
+            li.innerHTML = `
+              <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
+              <div class="meta">${toDateText(item.date)}</div>
+            `;
+            ul.appendChild(li);
+          }
+          videosFragment.appendChild(ul);
         }
 
         // Group blogs by category
@@ -466,9 +524,10 @@
         }
 
         updatesEl.appendChild(updatesFragment);
+        videosContainerEl.appendChild(videosFragment);
         blogsContainerEl.appendChild(blogsFragment);
         bindCopyButtons(updatesEl);
-        statusEl.textContent = `Loaded ${blogs.length} blog headlines and ${updates.length} updates`;
+        statusEl.textContent = `Loaded ${updates.length} updates, ${videos.length} videos, and ${blogs.length} blog headlines`;
       } catch (error) {
         statusEl.textContent = "Failed to load output.json";
         emptyEl.hidden = false;

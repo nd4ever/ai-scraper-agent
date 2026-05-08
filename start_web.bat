@@ -12,11 +12,13 @@ if not exist "%PYTHON_EXE%" (
 )
 
 cd /d "%~dp0"
-echo Refreshing output.json and starting web server...
-echo Open http://127.0.0.1:8000 after startup.
-echo Press Ctrl+C in this window to stop the server.
+echo Refreshing output.json and starting web servers...
+echo Open http://127.0.0.1:8000 for the main dashboard.
+echo Open http://127.0.0.1:8001 for the PDF report.
+echo Press Ctrl+C in these windows to stop the servers.
 echo.
-"%PYTHON_EXE%" serve_web.py --days 7 --port 8000
+start "Web Dashboard" "%PYTHON_EXE%" serve_web.py --port 8000
+start "PDF Report" "%PYTHON_EXE%" serve_pdf.py --port 8001
 
 if errorlevel 1 (
   echo.
