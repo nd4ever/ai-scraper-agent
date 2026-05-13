@@ -231,7 +231,7 @@
     </div>
     <div id="empty" class="empty" hidden>No items found in output.json.</div>
 
-    <h2>Azure Updates</h2>
+    <h2 id="updates-header">Azure Updates</h2>
     <div class="legend" aria-label="Status legend">
       <span id="legend-ga" class="badge ga">Generally Available (0)</span>
       <span id="legend-public-preview" class="badge preview">Public Preview (0)</span>
@@ -240,10 +240,10 @@
     </div>
     <ul id="updates"></ul>
 
-    <h2 class="azure-blogs-heading">Azure Blogs</h2>
+    <h2 id="blogs-header" class="azure-blogs-heading">Azure Blogs</h2>
     <div id="blogs-container"></div>
 
-    <h2 class="azure-blogs-heading">Azure Videos</h2>
+    <h2 id="videos-header" class="azure-blogs-heading">Azure Videos</h2>
     <div id="videos-container"></div>
   </main>
 
@@ -361,6 +361,10 @@
       const statusEl = document.getElementById("status");
       const emptyEl = document.getElementById("empty");
 
+      const updatesHeader = document.getElementById("updates-header");
+      const blogsHeader = document.getElementById("blogs-header");
+      const videosHeader = document.getElementById("videos-header");
+
       statusEl.textContent = "Loading...";
       updatesEl.innerHTML = "";
       videosContainerEl.innerHTML = "";
@@ -395,31 +399,24 @@
         if (!updates.length && !videos.length && !blogs.length) {
           emptyEl.hidden = false;
           statusEl.textContent = "Loaded 0 items";
+          if (updatesHeader) updatesHeader.textContent = "Azure Updates (0)";
+          if (blogsHeader) blogsHeader.textContent = "Azure Blogs (0)";
+          if (videosHeader) videosHeader.textContent = "Azure Videos (0)";
           return;
         }
 
         updateLegendCounts(updates);
 
+  if (updatesHeader) updatesHeader.textContent = `Azure Updates (${updates.length})`;
+  if (blogsHeader) blogsHeader.textContent = `Azure Blogs (${blogs.length})`;
+  if (videosHeader) videosHeader.textContent = `Azure Videos (${videos.length})`;
+
         const updatesFragment = document.createDocumentFragment();
         for (const item of updates) {
           const li = document.createElement("li");
-          const status = item.status || "Unknown";
-          const badgeClass = statusBadgeClass(status);
           const displayTitle = getDisplayUpdateTitle(item);
-          const learnMore = item.learn_more_url;
-          const learnMoreMarkup = learnMore
-            ? `<a class="learn-more-link" href="${learnMore}" target="_blank" rel="noopener noreferrer">Learn More</a>`
-            : "";
           li.innerHTML = `
-            <div class="title-row">
-              <a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>
-              <span class="badge ${badgeClass}">${status}</span>
-            </div>
-            <div class="actions-row">
-              <button class="copy-link-btn" type="button" data-url="${item.url}">Copy Link</button>
-              ${learnMoreMarkup}
-            </div>
-            <div class="meta">${toDateText(item.date)}</div>
+            <a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>
           `;
           updatesFragment.appendChild(li);
         }
@@ -444,23 +441,16 @@
         const videosFragment = document.createDocumentFragment();
         for (const channel of videoChannelOrder) {
           const channelItems = videosByChannel[channel] || [];
-          const channelUrl = channelItems[0]?.channel_url || "";
 
-          const heading = document.createElement("h3");
-          heading.className = "video-channel-heading";
-          if (channelUrl) {
-            heading.innerHTML = `<a href="${channelUrl}" target="_blank" rel="noopener noreferrer">${channel}</a>: (${channelItems.length})`;
-          } else {
-            heading.textContent = `${channel}: (${channelItems.length})`;
+          if (!channelItems.length) {
+            continue;
           }
-          videosFragment.appendChild(heading);
 
           const ul = document.createElement("ul");
           for (const item of channelItems) {
             const li = document.createElement("li");
             li.innerHTML = `
               <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
-              <div class="meta">${toDateText(item.date)}</div>
             `;
             ul.appendChild(li);
           }
@@ -498,16 +488,7 @@
         for (const category of categoryOrder) {
           const categoryItems = blogsByCategory[category] || [];
 
-          const heading = document.createElement("h3");
-          heading.className = "blog-category-heading";
-          heading.textContent = `${category}: (${categoryItems.length})`;
-          blogsFragment.appendChild(heading);
-
           if (!categoryItems.length) {
-            const emptyMessage = document.createElement("div");
-            emptyMessage.className = "empty-category";
-            emptyMessage.textContent = "No posts for this period.";
-            blogsFragment.appendChild(emptyMessage);
             continue;
           }
 
@@ -516,7 +497,6 @@
             const li = document.createElement("li");
             li.innerHTML = `
               <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
-              <div class="meta">${toDateText(item.date)}</div>
             `;
             ul.appendChild(li);
           }
