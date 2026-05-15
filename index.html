@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Azure Headlines</title>
+  <title>Azure Headlines Dashboard</title>
   <style>
     :root {
       --bg: #f6f9fc;
@@ -13,6 +13,10 @@
       --link: #005a9c;
       --accent: #dbeafe;
       --border: #e2e8f0;
+      --paper: #ffffff;
+      --ink: #0f172a;
+      --line: #d0d7e2;
+      --accent-blue: #0b5cab;
     }
 
     * {
@@ -22,10 +26,7 @@
     body {
       margin: 0;
       font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-      background:
-        radial-gradient(1200px 500px at 10% -10%, #dbeafe 0%, transparent 60%),
-        radial-gradient(900px 400px at 90% 0%, #e0f2fe 0%, transparent 55%),
-        var(--bg);
+      background: var(--bg);
       color: var(--text);
       min-height: 100vh;
     }
@@ -34,6 +35,50 @@
       max-width: 900px;
       margin: 0 auto;
       padding: 24px 16px 48px;
+    }
+
+    /* Tab Switcher */
+    .tab-switcher {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg);
+      z-index: 100;
+      padding-bottom: 0;
+    }
+
+    .tab-btn {
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 1rem;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+      margin-bottom: -2px;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+    }
+
+    .tab-btn.active {
+      color: var(--link);
+      border-bottom-color: var(--link);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
     }
 
     h1 {
@@ -86,27 +131,13 @@
       margin-bottom: 8px;
     }
 
-    .blog-category-heading {
-      font-style: italic;
-      font-weight: normal;
-      margin: 18px 0 8px;
-      font-size: 1rem;
-      color: var(--text);
-    }
-
-    .video-channel-heading {
-      font-style: italic;
-      font-weight: normal;
-      margin: 18px 0 8px;
-      font-size: 1rem;
-      color: var(--text);
-    }
-
-    .empty-category {
-      margin: 0 0 12px;
-      color: var(--muted);
-      font-size: 0.9rem;
-      font-style: italic;
+    .empty {
+      margin-top: 20px;
+      background: var(--accent);
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 14px;
+      color: #1e3a8a;
     }
 
     .legend {
@@ -140,13 +171,6 @@
 
     a:hover {
       text-decoration: underline;
-    }
-
-    .title-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
     }
 
     .badge {
@@ -185,69 +209,186 @@
       border-color: #cbd5e1;
     }
 
-    .meta {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 0.9rem;
+    /* PDF Report Styles */
+    .page {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 2px 8px rgba(2, 6, 23, 0.05);
+      padding: 0;
     }
 
-    .actions-row {
-      margin-top: 8px;
-      display: flex;
-      gap: 10px;
-      align-items: center;
-      flex-wrap: wrap;
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+      margin-top: 6px;
     }
 
-    .copy-link-btn {
-      padding: 4px 10px;
-      font-size: 0.82rem;
-      border-radius: 999px;
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
       background: #f8fafc;
+      font-weight: 700;
     }
 
-    .learn-more-link {
-      font-size: 0.88rem;
-      font-weight: 600;
+    .muted {
+      color: var(--muted);
+      font-style: italic;
     }
 
-    .empty {
-      margin-top: 20px;
-      background: var(--accent);
-      border: 1px solid #bfdbfe;
-      border-radius: 10px;
-      padding: 14px;
-      color: #1e3a8a;
+    .cards {
+      display: grid;
+      gap: 16px;
+      margin-top: 14px;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      background: var(--card);
+    }
+
+    .card-header {
+      background: var(--accent-blue);
+      color: #fff;
+      font-weight: 700;
+      padding: 10px 12px;
+      font-size: 0.96rem;
+    }
+
+    .card-body {
+      padding: 12px;
+    }
+
+    .title {
+      margin: 0 0 8px;
+      font-size: 1.03rem;
+      line-height: 1.35;
+    }
+
+    .meta {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    .line {
+      margin-top: 8px;
+      font-size: 0.93rem;
+    }
+
+    .links {
+      margin: 6px 0 0;
+      padding-left: 18px;
+    }
+
+    .links li {
+      margin: 4px 0;
+      line-height: 1.35;
+      word-break: break-word;
+      padding: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .links li a {
+      color: var(--accent-blue);
+      word-break: break-all;
+      font-weight: normal;
+    }
+
+    .report-title {
+      font-size: 1.8rem;
+      margin: 0 0 8px;
+      padding: 20px 20px 0;
+    }
+
+    .report-sub {
+      color: var(--muted);
+      margin: 8px 0 18px;
+      font-size: 0.95rem;
+      padding: 0 20px;
+    }
+
+    .report-section {
+      padding: 20px;
+    }
+
+    .report-summary {
+      margin-bottom: 30px;
     }
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <h1>Azure Headlines</h1>
-    <p class="sub" id="week-label">Loading week range...</p>
-    <div class="toolbar">
-      <button id="refresh-btn" type="button">Refresh</button>
-      <span id="status" class="status">Loading...</span>
+  <div class="wrap">
+    <!-- Tab Switcher -->
+    <div class="tab-switcher">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="report">Weekly Report</button>
     </div>
-    <div id="empty" class="empty" hidden>No items found in output.json.</div>
 
-    <h2 id="updates-header">Azure Updates</h2>
-    <div class="legend" aria-label="Status legend">
-      <span id="legend-ga" class="badge ga">Generally Available (0)</span>
-      <span id="legend-public-preview" class="badge preview">Public Preview (0)</span>
-      <span id="legend-private-preview" class="badge preview">Private Preview (0)</span>
-      <span id="legend-retirement" class="badge retirement">Retirement (0)</span>
+    <!-- Dashboard Tab -->
+    <div id="dashboard" class="tab-content active">
+      <h1>Azure Headlines</h1>
+      <p class="sub" id="week-label">Loading week range...</p>
+      <div class="toolbar">
+        <button id="refresh-btn" type="button">Refresh</button>
+        <span id="status" class="status">Loading...</span>
+      </div>
+      <div id="empty" class="empty" hidden>No items found in output.json.</div>
+
+      <h2 id="updates-header">Azure Updates</h2>
+      <div class="legend" aria-label="Status legend">
+        <span id="legend-ga" class="badge ga">Generally Available (0)</span>
+        <span id="legend-public-preview" class="badge preview">Public Preview (0)</span>
+        <span id="legend-private-preview" class="badge preview">Private Preview (0)</span>
+        <span id="legend-retirement" class="badge retirement">Retirement (0)</span>
+      </div>
+      <ul id="updates"></ul>
+
+      <h2 id="blogs-header" class="azure-blogs-heading">Azure Blogs</h2>
+      <div id="blogs-container"></div>
+
+      <h2 id="videos-header" class="azure-blogs-heading">Azure Videos</h2>
+      <div id="videos-container"></div>
     </div>
-    <ul id="updates"></ul>
 
-    <h2 id="blogs-header" class="azure-blogs-heading">Azure Blogs</h2>
-    <div id="blogs-container"></div>
+    <!-- Report Tab -->
+    <div id="report" class="tab-content">
+      <div class="page">
+        <h1 class="report-title">Azure Updates Weekly Report</h1>
+        <p class="report-sub" id="report-week-label">Loading report data...</p>
 
-    <h2 id="videos-header" class="azure-blogs-heading">Azure Videos</h2>
-    <div id="videos-container"></div>
-  </main>
+        <div class="report-section report-summary">
+          <h2>Announcements Summary</h2>
+          <table aria-label="Announcements summary table">
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>Update Type (Total)</th>
+              </tr>
+            </thead>
+            <tbody id="summary-body"></tbody>
+          </table>
+          <div id="summary-empty" class="muted" hidden>No Azure updates found for this range.</div>
+        </div>
+
+        <div class="report-section">
+          <h2>Update Announcements</h2>
+          <div id="cards" class="cards"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
+    // Utility Functions
     function toDateText(dateValue) {
       const parsed = new Date(dateValue);
       if (Number.isNaN(parsed.getTime())) {
@@ -320,9 +461,7 @@
           await navigator.clipboard.writeText(text);
           return true;
         }
-      } catch (_) {
-      }
-
+      } catch (_) {}
       try {
         const textarea = document.createElement("textarea");
         textarea.value = text;
@@ -354,6 +493,7 @@
       }
     }
 
+    // Dashboard Functions
     async function loadUpdates() {
       const updatesEl = document.getElementById("updates");
       const videosContainerEl = document.getElementById("videos-container");
@@ -381,9 +521,7 @@
         const payload = await response.json();
         const updatesRaw = Array.isArray(payload?.azure_updates) ? payload.azure_updates : [];
         const videosRaw = Array.isArray(payload?.azure_youtube_videos) ? payload.azure_youtube_videos : [];
-        const blogsRaw = Array.isArray(payload?.azure_community_blog_headlines)
-          ? payload.azure_community_blog_headlines
-          : [];
+        const blogsRaw = Array.isArray(payload?.azure_community_blog_headlines) ? payload.azure_community_blog_headlines : [];
 
         const updates = normalizeItems(updatesRaw);
         const videos = normalizeItems(videosRaw);
@@ -406,18 +544,15 @@
         }
 
         updateLegendCounts(updates);
-
-  if (updatesHeader) updatesHeader.textContent = `Azure Updates (${updates.length})`;
-  if (blogsHeader) blogsHeader.textContent = `Azure Blogs (${blogs.length})`;
-  if (videosHeader) videosHeader.textContent = `Azure Videos (${videos.length})`;
+        if (updatesHeader) updatesHeader.textContent = `Azure Updates (${updates.length})`;
+        if (blogsHeader) blogsHeader.textContent = `Azure Blogs (${blogs.length})`;
+        if (videosHeader) videosHeader.textContent = `Azure Videos (${videos.length})`;
 
         const updatesFragment = document.createDocumentFragment();
         for (const item of updates) {
           const li = document.createElement("li");
           const displayTitle = getDisplayUpdateTitle(item);
-          li.innerHTML = `
-            <a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>
-          `;
+          li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>`;
           updatesFragment.appendChild(li);
         }
 
@@ -430,52 +565,30 @@
           videosByChannel[channel].push(item);
         }
 
-        const videoChannelOrder = [
-          'NTFAQGuy',
-          'MicrosoftAzure',
-          'MSFTMechanics',
-          'MicrosoftSecurityCommunity',
-          'AzureArcServerForum',
-        ];
+        const videoChannelOrder = ['NTFAQGuy', 'MicrosoftAzure', 'MSFTMechanics', 'MicrosoftSecurityCommunity', 'AzureArcServerForum'];
 
         const videosFragment = document.createDocumentFragment();
         for (const channel of videoChannelOrder) {
           const channelItems = videosByChannel[channel] || [];
-
-          if (!channelItems.length) {
-            continue;
-          }
+          if (!channelItems.length) continue;
 
           const ul = document.createElement("ul");
           for (const item of channelItems) {
             const li = document.createElement("li");
-            li.innerHTML = `
-              <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
-            `;
+            li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`;
             ul.appendChild(li);
           }
           videosFragment.appendChild(ul);
         }
 
-        // Group blogs by category
         const blogsByCategory = {};
         const categoryOrder = [
-          'Azure Arc Blog',
-          'Azure Architecture Blog',
-          'Azure Compute Blog',
-          'Azure Governance and Management Blog',
-          'Azure Infrastructure Blog',
-          'Azure Integration Services Blog',
-          'Azure Migration and Modernization Blog',
-          'Azure Networking Blog',
-          'Azure Observability Blog',
-          'Azure Storage Blog',
-          'Azure Tools Blog',
-          'Azure Virtual Desktop Blog',
-          'FinOps Blog',
-          'Linux and Open Source Blog',
+          'Azure Arc Blog', 'Azure Architecture Blog', 'Azure Compute Blog', 'Azure Governance and Management Blog',
+          'Azure Infrastructure Blog', 'Azure Integration Services Blog', 'Azure Migration and Modernization Blog',
+          'Azure Networking Blog', 'Azure Observability Blog', 'Azure Storage Blog', 'Azure Tools Blog',
+          'Azure Virtual Desktop Blog', 'FinOps Blog', 'Linux and Open Source Blog',
         ];
-        
+
         for (const item of blogs) {
           const category = item.category || 'Other';
           if (!blogsByCategory[category]) {
@@ -487,17 +600,12 @@
         const blogsFragment = document.createDocumentFragment();
         for (const category of categoryOrder) {
           const categoryItems = blogsByCategory[category] || [];
-
-          if (!categoryItems.length) {
-            continue;
-          }
+          if (!categoryItems.length) continue;
 
           const ul = document.createElement("ul");
           for (const item of categoryItems) {
             const li = document.createElement("li");
-            li.innerHTML = `
-              <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>
-            `;
+            li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`;
             ul.appendChild(li);
           }
           blogsFragment.appendChild(ul);
@@ -515,6 +623,163 @@
       }
     }
 
+    // Report Functions
+    function normalizeStatus(status) {
+      const s = String(status || "").trim().toLowerCase();
+      if (!s) return "Unknown";
+      if (s.includes("generally available") || s === "launched") return "Generally Available";
+      if (s.includes("public preview")) return "Public Preview";
+      if (s.includes("private preview")) return "Private Preview";
+      if (s.includes("retirement")) return "Retirement";
+      return s.replace(/\b\w/g, (m) => m.toUpperCase());
+    }
+
+    function normalizeProduct(update) {
+      const product = String(update?.product || "").trim();
+      const lowered = product.toLowerCase();
+      if (!product || lowered === "unknown azure service" || /^azure\s+(in|for|on|with|from)$/i.test(product)) {
+        return "General Azure Announcement";
+      }
+      return product;
+    }
+
+    function buildSummaryRows(updates) {
+      const byProduct = new Map();
+
+      for (const update of updates) {
+        const product = normalizeProduct(update);
+        const status = normalizeStatus(update?.status);
+        if (!byProduct.has(product)) {
+          byProduct.set(product, new Map());
+        }
+        const perStatus = byProduct.get(product);
+        perStatus.set(status, (perStatus.get(status) || 0) + 1);
+      }
+
+      const statusOrder = ["Retirement", "Generally Available", "Public Preview", "Private Preview", "Unknown"];
+
+      return Array.from(byProduct.entries())
+        .map(([product, perStatus]) => {
+          const statuses = Array.from(perStatus.entries())
+            .map(([status, count]) => ({ status, count }))
+            .sort((a, b) => {
+              const ai = statusOrder.indexOf(a.status);
+              const bi = statusOrder.indexOf(b.status);
+              if (ai === -1 && bi === -1) return a.status.localeCompare(b.status);
+              if (ai === -1) return 1;
+              if (bi === -1) return -1;
+              return ai - bi;
+            });
+          return { product, statuses };
+        })
+        .sort((a, b) => a.product.localeCompare(b.product));
+    }
+
+    function dedupeLinks(links) {
+      const output = [];
+      const seen = new Set();
+      for (const link of links || []) {
+        const href = String(link || "").trim();
+        if (!href || seen.has(href)) continue;
+        seen.add(href);
+        output.push(href);
+      }
+      return output;
+    }
+
+    async function loadReport() {
+      const summaryBodyEl = document.getElementById("summary-body");
+      const summaryEmptyEl = document.getElementById("summary-empty");
+      const cardsEl = document.getElementById("cards");
+      const weekLabelEl = document.getElementById("report-week-label");
+
+      summaryBodyEl.innerHTML = "";
+      cardsEl.innerHTML = "";
+      summaryEmptyEl.hidden = true;
+
+      const cacheBust = Date.now();
+      const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const updates = Array.isArray(payload?.azure_updates)
+        ? payload.azure_updates.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+        : [];
+
+      if (payload.week_start && payload.week_end) {
+        weekLabelEl.textContent = formatWeekLabel(payload.week_start, payload.week_end);
+      } else {
+        weekLabelEl.textContent = "Date range unavailable";
+      }
+
+      if (!updates.length) {
+        summaryEmptyEl.hidden = false;
+        const empty = document.createElement("div");
+        empty.className = "muted";
+        empty.textContent = "No announcement cards to display.";
+        cardsEl.appendChild(empty);
+        return;
+      }
+
+      const summaryRows = buildSummaryRows(updates);
+      for (const row of summaryRows) {
+        const statusText = row.statuses
+          .map((entry) => `${entry.status} - ${entry.count} Update${entry.count === 1 ? "" : "s"}`)
+          .join("<br>");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${row.product}</td><td>${statusText}</td>`;
+        summaryBodyEl.appendChild(tr);
+      }
+
+      for (const item of updates) {
+        const card = document.createElement("section");
+        card.className = "card";
+
+        const product = normalizeProduct(item);
+        const documentationLinks = dedupeLinks(item.documentation_links).filter((href) => href !== item.url);
+
+        const docItems = documentationLinks.length
+          ? documentationLinks.map((href) => `<li><a href="${href}" target="_blank" rel="noopener noreferrer">${href}</a></li>`).join("")
+          : "<li>No additional documentation links found.</li>";
+
+        card.innerHTML = `
+          <div class="card-header">Azure Service: ${product}</div>
+          <div class="card-body">
+            <h3 class="title">${item.title || "Untitled update"}</h3>
+            <div class="meta">${normalizeStatus(item.status)} • ${toDateText(item.date)}</div>
+            <div class="line"><strong>Announcement:</strong> <a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.url}</a></div>
+            <div class="line"><strong>Documentation:</strong></div>
+            <ul class="links">${docItems}</ul>
+          </div>
+        `;
+
+        cardsEl.appendChild(card);
+      }
+    }
+
+    // Tab Switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabName = btn.dataset.tab;
+
+        // Update button states
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        // Update content visibility
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+
+        // Load data when switching to report tab
+        if (tabName === 'report' && !document.querySelector('#cards').hasChildNodes()) {
+          loadReport();
+        }
+      });
+    });
+
+    // Initial Load
     document.getElementById("refresh-btn").addEventListener("click", loadUpdates);
     loadUpdates();
   </script>

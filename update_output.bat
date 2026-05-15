@@ -9,5 +9,6 @@ if not exist "%PYTHON_EXE%" (
 )
 
 cd /d "%~dp0"
-"%PYTHON_EXE%" update_output.py --days 7 --out output.json
+rem update_output.py always pulls the most recently completed Monday-Sunday week.
+"%PYTHON_EXE%" update_output.py --out output.json
 exit /b %errorlevel%
