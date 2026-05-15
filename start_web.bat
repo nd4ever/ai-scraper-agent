@@ -12,13 +12,12 @@ if not exist "%PYTHON_EXE%" (
 )
 
 cd /d "%~dp0"
-echo Refreshing output.json and starting web servers...
-echo Open http://127.0.0.1:8000 for the main dashboard.
-echo Open http://127.0.0.1:8001 for the PDF report.
-echo Press Ctrl+C in these windows to stop the servers.
+echo Refreshing output.json and starting unified web server...
+echo Open http://127.0.0.1:8000 for the dashboard.
+echo Use the tabs to switch between Dashboard and Weekly Report views.
+echo Press Ctrl+C in this window to stop the server.
 echo.
-start "Web Dashboard" "%PYTHON_EXE%" serve_web.py --port 8000
-start "PDF Report" "%PYTHON_EXE%" serve_pdf.py --port 8001
+start "Azure Headlines Dashboard" "%PYTHON_EXE%" serve_unified.py --port 8000
 
 if errorlevel 1 (
   echo.
