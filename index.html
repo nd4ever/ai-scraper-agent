@@ -412,7 +412,7 @@
 
     function statusBadgeClass(status) {
       const normalized = String(status || "").toLowerCase();
-      if (normalized === "generally available") return "ga";
+      if (normalized === "generally available" || normalized === "launched") return "ga";
       if (normalized.includes("preview")) return "preview";
       if (normalized.includes("retirement")) return "retirement";
       return "default";
@@ -437,7 +437,7 @@
 
       for (const item of updates) {
         const status = String(item?.status || "").toLowerCase();
-        if (status === "generally available") {
+        if (status === "generally available" || status === "launched") {
           ga += 1;
         } else if (status === "public preview") {
           publicPreview += 1;
