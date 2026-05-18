@@ -65,7 +65,7 @@ Then open http://127.0.0.1:8000 to view `index.html`, which renders:
 
 Both lists are from the last 7 days. The page regenerates `output.json` on every launch so you always see the latest results.
 
-Scheduling (Windows Task Scheduler / cron): run the above command weekly.
+Scheduling (Windows Task Scheduler / cron): run the above command nightly.
 
 Azure Function deployment (simple):
 
@@ -83,8 +83,18 @@ func azure functionapp publish <APP_NAME>
 
 Environment notes:
 - Provide `AzureWebJobsStorage` or `AZURE_STORAGE_CONNECTION_STRING` as a setting.
-- Set `OUTPUT_CONTAINER` to the blob container name to store results; otherwise results are written to the function filesystem.
+- Set `OUTPUT_CONTAINER` to the blob container name to store results.
+- Set `OUTPUT_BLOB_NAME=output.json` so each run overwrites a stable blob the website can read.
 - Set `DAYS_BACK=7` to fetch only the previous 7 days in scheduled runs.
+
+Timer schedule notes:
+- `function_app/ScrapeTimer/function.json` uses NCRONTAB format: `{second} {minute} {hour} {day} {month} {day-of-week}`.
+- Current schedule is nightly at 02:00 UTC (`0 0 2 * * *`).
+
+Important architecture note:
+- `index.html` currently fetches local `output.json` from the Web App package.
+- A Function App run does not automatically update that file in the Web App.
+- To show nightly-refresh data on the site, point the page to a shared data source (for example blob `output.json` produced by `ScrapeTimer`) or make the page call the Function HTTP endpoint directly.
 
 Azure CLI quick create (example):
 
