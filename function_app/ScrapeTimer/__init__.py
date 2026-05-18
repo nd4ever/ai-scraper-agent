@@ -52,18 +52,23 @@ def main(mytimer: func.TimerRequest) -> None:
     out_json = json.dumps(out, indent=2, ensure_ascii=False)
 
     timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
-    filename = f'results-{timestamp}.json'
+    archive_filename = f'results-{timestamp}.json'
+    latest_filename = os.getenv('OUTPUT_BLOB_NAME') or 'output.json'
 
     conn = os.getenv('AZURE_STORAGE_CONNECTION_STRING') or os.getenv('AzureWebJobsStorage')
     container = os.getenv('OUTPUT_CONTAINER') or 'scraper-output'
 
     if conn:
         try:
-            _upload_blob(conn, container, filename, out_json)
-            logging.info(f'Uploaded results to container {container} as {filename}')
+            _upload_blob(conn, container, archive_filename, out_json)
+            _upload_blob(conn, container, latest_filename, out_json)
+            logging.info(
+                f'Uploaded results to container {container} '
+                f'as {archive_filename} and {latest_filename}'
+            )
             return
         except Exception as e:
             logging.warning(f'Blob upload failed: {e}')
 
-    path = _write_local(filename, out_json)
+    path = _write_local(latest_filename, out_json)
     logging.info(f'Wrote results locally to {path}')
