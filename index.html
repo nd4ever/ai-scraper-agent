@@ -225,6 +225,26 @@
       border-color: #cbd5e1;
     }
 
+    .legend .badge {
+      cursor: pointer;
+      transition: opacity 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+      user-select: none;
+    }
+
+    .legend .badge:hover {
+      opacity: 0.85;
+      transform: translateY(-1px);
+    }
+
+    .legend .badge.filter-active {
+      box-shadow: 0 0 0 3px currentColor;
+      transform: translateY(-1px);
+    }
+
+    .legend .badge.filter-dimmed {
+      opacity: 0.3;
+    }
+
     /* PDF Report Styles */
     .page {
       background: var(--paper);
@@ -492,6 +512,18 @@
       return "default";
     }
 
+    function statusFilterKey(status) {
+      const s = String(status || "").toLowerCase();
+      if (s === "generally available" || s === "launched") return "ga";
+      if (s === "public preview") return "public-preview";
+      if (s === "private preview") return "private-preview";
+      if (s.includes("retirement")) return "retirement";
+      return "other";
+    }
+
+    // Tracks the active filter badge per dashboard prefix ("" = weekly, "month-" = monthly)
+    const filterState = {};
+
     function getDisplayUpdateTitle(item) {
       const status = String(item?.status || "").trim();
       const title = String(item?.title || "").trim();
@@ -581,11 +613,71 @@
       const fragment = document.createDocumentFragment();
       for (const item of updates) {
         const li = document.createElement("li");
+        li.dataset.filterKey = statusFilterKey(item.status);
         const displayTitle = getDisplayUpdateTitle(item);
         li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>`;
         fragment.appendChild(li);
       }
       container.appendChild(fragment);
+    }
+
+    function initFilterBadges(prefix) {
+      const filterMap = [
+        { id: `${prefix}legend-ga`,              key: "ga" },
+        { id: `${prefix}legend-public-preview`,   key: "public-preview" },
+        { id: `${prefix}legend-private-preview`,  key: "private-preview" },
+        { id: `${prefix}legend-retirement`,       key: "retirement" },
+      ];
+
+      for (const { id, key } of filterMap) {
+        const badge = document.getElementById(id);
+        if (!badge) continue;
+
+        // Set accessibility attributes once
+        badge.setAttribute("role", "button");
+        badge.setAttribute("tabindex", "0");
+        badge.title = `Click to filter by ${badge.textContent.replace(/\s*\(\d+\)/, "")} — click again to clear`;
+
+        // Replace node to remove any stale listeners, then re-attach
+        const fresh = badge.cloneNode(true);
+        badge.replaceWith(fresh);
+
+        fresh.addEventListener("click", () => applyFilter(prefix, key, filterMap));
+        fresh.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            applyFilter(prefix, key, filterMap);
+          }
+        });
+      }
+    }
+
+    function applyFilter(prefix, key, filterMap) {
+      const updatesEl = document.getElementById(`${prefix}updates`);
+      if (!updatesEl) return;
+
+      const wasActive = filterState[prefix] === key;
+      filterState[prefix] = wasActive ? null : key;
+
+      // Show / hide list items
+      for (const li of updatesEl.querySelectorAll("li[data-filter-key]")) {
+        li.hidden = filterState[prefix] !== null && li.dataset.filterKey !== filterState[prefix];
+      }
+
+      // Update badge visual states
+      for (const { id, key: bKey } of filterMap) {
+        const badge = document.getElementById(id);
+        if (!badge) continue;
+        if (filterState[prefix] === null) {
+          badge.classList.remove("filter-active", "filter-dimmed");
+        } else if (bKey === filterState[prefix]) {
+          badge.classList.add("filter-active");
+          badge.classList.remove("filter-dimmed");
+        } else {
+          badge.classList.remove("filter-active");
+          badge.classList.add("filter-dimmed");
+        }
+      }
     }
 
     function renderGroupedLists(container, items, groupBy, orderedKeys) {
@@ -637,6 +729,13 @@
       videosContainerEl.innerHTML = "";
       blogsContainerEl.innerHTML = "";
 
+      // Reset any active filter when re-rendering
+      filterState[prefix] = null;
+      for (const id of [`${prefix}legend-ga`, `${prefix}legend-public-preview`, `${prefix}legend-private-preview`, `${prefix}legend-retirement`]) {
+        const badge = document.getElementById(id);
+        if (badge) badge.classList.remove("filter-active", "filter-dimmed");
+      }
+
       const updates = normalizeItems(Array.isArray(payload?.[updatesKey]) ? payload[updatesKey] : []);
       const videos = normalizeItems(Array.isArray(payload?.[videosKey]) ? payload[videosKey] : []);
       const blogs = normalizeItems(Array.isArray(payload?.[blogsKey]) ? payload[blogsKey] : []);
@@ -670,6 +769,7 @@
       renderGroupedLists(blogsContainerEl, blogs, (item) => item.category || 'Other', categoryOrder);
 
       bindCopyButtons(updatesEl);
+      initFilterBadges(prefix);
 
       return {
         updatesCount: updates.length,
