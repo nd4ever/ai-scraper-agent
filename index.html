@@ -124,6 +124,22 @@
       font-size: 1.2rem;
     }
 
+    .period-section {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+
+    .period-heading {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+
+    .period-sub {
+      margin: 6px 0 0;
+      color: var(--muted);
+    }
+
     .azure-blogs-heading {
       text-decoration: underline;
       text-underline-offset: 3px;
@@ -329,13 +345,15 @@
   <div class="wrap">
     <!-- Tab Switcher -->
     <div class="tab-switcher">
-      <button class="tab-btn active" data-tab="dashboard">Azure Updates/Blogs/Videos</button>
-      <button class="tab-btn" data-tab="report">Azure Newsletter</button>
+      <button class="tab-btn active" data-tab="dashboard-weekly">Weekly Azure Updates/Blogs/Videos</button>
+      <button class="tab-btn" data-tab="dashboard-monthly">Monthly Azure Updates/Blogs/Videos</button>
+      <button class="tab-btn" data-tab="report-weekly">Weekly Azure Newsletter</button>
+      <button class="tab-btn" data-tab="report-monthly">Monthly Azure Newsletter</button>
     </div>
 
-    <!-- Dashboard Tab -->
-    <div id="dashboard" class="tab-content active">
-      <h1>Azure Headlines</h1>
+    <!-- Dashboard Weekly Tab -->
+    <div id="dashboard-weekly" class="tab-content active">
+      <h1>Weekly Azure Updates/Blogs/Videos</h1>
       <p class="sub" id="week-label">Loading week range...</p>
       <div class="toolbar">
         <button id="refresh-btn" type="button">Refresh</button>
@@ -359,29 +377,78 @@
       <div id="videos-container"></div>
     </div>
 
-    <!-- Report Tab -->
-    <div id="report" class="tab-content">
+    <!-- Dashboard Monthly Tab -->
+    <div id="dashboard-monthly" class="tab-content">
+      <h1>Monthly Azure Updates/Blogs/Videos</h1>
+      <p class="sub" id="month-label">Loading month range...</p>
+      <div class="toolbar">
+        <button id="refresh-monthly-btn" type="button">Refresh</button>
+        <span id="status-monthly" class="status">Loading...</span>
+      </div>
+      <div id="empty-monthly" class="empty" hidden>No items found in output.json.</div>
+
+      <h2 id="month-updates-header">Azure Updates</h2>
+      <div class="legend" aria-label="Monthly status legend">
+        <span id="month-legend-ga" class="badge ga">Generally Available (0)</span>
+        <span id="month-legend-public-preview" class="badge preview">Public Preview (0)</span>
+        <span id="month-legend-private-preview" class="badge preview">Private Preview (0)</span>
+        <span id="month-legend-retirement" class="badge retirement">Retirement (0)</span>
+      </div>
+      <ul id="month-updates"></ul>
+
+      <h2 id="month-blogs-header" class="azure-blogs-heading">Azure Blogs</h2>
+      <div id="month-blogs-container"></div>
+
+      <h2 id="month-videos-header" class="azure-blogs-heading">Azure Videos</h2>
+      <div id="month-videos-container"></div>
+    </div>
+
+    <!-- Report Weekly Tab -->
+    <div id="report-weekly" class="tab-content">
       <div class="page">
-        <h1 class="report-title">Azure Updates Weekly Report</h1>
-        <p class="report-sub" id="report-week-label">Loading report data...</p>
+        <h1 class="report-title">Weekly Azure Newsletter</h1>
+        <p class="report-sub" id="report-week-label">Loading weekly report data...</p>
 
         <div class="report-section report-summary">
           <h2>Announcements Summary</h2>
-          <table aria-label="Announcements summary table">
+          <table aria-label="Weekly announcements summary table">
             <thead>
               <tr>
                 <th>Product Name</th>
                 <th>Update Type (Total)</th>
               </tr>
             </thead>
-            <tbody id="summary-body"></tbody>
+            <tbody id="summary-body-week"></tbody>
           </table>
-          <div id="summary-empty" class="muted" hidden>No Azure updates found for this range.</div>
-        </div>
+          <div id="summary-empty-week" class="muted" hidden>No Azure updates found for this weekly range.</div>
 
-        <div class="report-section">
-          <h2>Update Announcements</h2>
-          <div id="cards" class="cards"></div>
+          <h2>Weekly Update Announcements</h2>
+          <div id="cards-week" class="cards"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Report Monthly Tab -->
+    <div id="report-monthly" class="tab-content">
+      <div class="page">
+        <h1 class="report-title">Monthly Azure Newsletter</h1>
+        <p class="report-sub" id="report-month-label">Loading monthly report data...</p>
+
+        <div class="report-section report-summary">
+          <h2>Announcements Summary</h2>
+          <table aria-label="Monthly announcements summary table">
+            <thead>
+              <tr>
+                <th>Product Name</th>
+                <th>Update Type (Total)</th>
+              </tr>
+            </thead>
+            <tbody id="summary-body-month"></tbody>
+          </table>
+          <div id="summary-empty-month" class="muted" hidden>No Azure updates found for this monthly range.</div>
+
+          <h2>Monthly Update Announcements</h2>
+          <div id="cards-month" class="cards"></div>
         </div>
       </div>
     </div>
@@ -410,6 +477,13 @@
       return `Week of ${start.toLocaleDateString(undefined, opts)} \u2013 ${end.toLocaleDateString(undefined, opts)}`;
     }
 
+    function formatMonthLabel(monthStart, monthEnd) {
+      const opts = { month: 'short', day: 'numeric', year: 'numeric' };
+      const start = new Date(monthStart + 'T00:00:00');
+      const end = new Date(monthEnd + 'T00:00:00');
+      return `Month of ${start.toLocaleDateString(undefined, opts)} \u2013 ${end.toLocaleDateString(undefined, opts)}`;
+    }
+
     function statusBadgeClass(status) {
       const normalized = String(status || "").toLowerCase();
       if (normalized === "generally available" || normalized === "launched") return "ga";
@@ -429,7 +503,7 @@
       return `${status}: ${title}`;
     }
 
-    function updateLegendCounts(updates) {
+    function updateLegendCounts(updates, prefix = "") {
       let ga = 0;
       let publicPreview = 0;
       let privatePreview = 0;
@@ -448,10 +522,10 @@
         }
       }
 
-      document.getElementById("legend-ga").textContent = `Generally Available (${ga})`;
-      document.getElementById("legend-public-preview").textContent = `Public Preview (${publicPreview})`;
-      document.getElementById("legend-private-preview").textContent = `Private Preview (${privatePreview})`;
-      document.getElementById("legend-retirement").textContent = `Retirement (${retirement})`;
+      document.getElementById(`${prefix}legend-ga`).textContent = `Generally Available (${ga})`;
+      document.getElementById(`${prefix}legend-public-preview`).textContent = `Public Preview (${publicPreview})`;
+      document.getElementById(`${prefix}legend-private-preview`).textContent = `Private Preview (${privatePreview})`;
+      document.getElementById(`${prefix}legend-retirement`).textContent = `Retirement (${retirement})`;
     }
 
     async function copyTextToClipboard(text) {
@@ -493,22 +567,125 @@
       }
     }
 
-    // Dashboard Functions
-    async function loadUpdates() {
-      const updatesEl = document.getElementById("updates");
-      const videosContainerEl = document.getElementById("videos-container");
-      const blogsContainerEl = document.getElementById("blogs-container");
-      const statusEl = document.getElementById("status");
-      const emptyEl = document.getElementById("empty");
+    function renderSimpleList(container, items) {
+      const fragment = document.createDocumentFragment();
+      for (const item of items) {
+        const li = document.createElement("li");
+        li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`;
+        fragment.appendChild(li);
+      }
+      container.appendChild(fragment);
+    }
 
-      const updatesHeader = document.getElementById("updates-header");
-      const blogsHeader = document.getElementById("blogs-header");
-      const videosHeader = document.getElementById("videos-header");
+    function renderUpdatesList(container, updates) {
+      const fragment = document.createDocumentFragment();
+      for (const item of updates) {
+        const li = document.createElement("li");
+        const displayTitle = getDisplayUpdateTitle(item);
+        li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>`;
+        fragment.appendChild(li);
+      }
+      container.appendChild(fragment);
+    }
 
-      statusEl.textContent = "Loading...";
+    function renderGroupedLists(container, items, groupBy, orderedKeys) {
+      const groups = {};
+      for (const item of items) {
+        const key = groupBy(item);
+        if (!groups[key]) {
+          groups[key] = [];
+        }
+        groups[key].push(item);
+      }
+
+      const fragment = document.createDocumentFragment();
+      for (const key of orderedKeys) {
+        const groupItems = groups[key] || [];
+        if (!groupItems.length) continue;
+        const ul = document.createElement("ul");
+        renderSimpleList(ul, groupItems);
+        fragment.appendChild(ul);
+      }
+      container.appendChild(fragment);
+    }
+
+    function renderDashboardSection(section) {
+      const {
+        prefix,
+        payload,
+        updatesKey,
+        videosKey,
+        blogsKey,
+        rangeStartKey,
+        rangeEndKey,
+        rangeLabelId,
+        rangeFormatter,
+        rangeFallback,
+        updatesLabel,
+        statusLabel,
+      } = section;
+
+      const updatesEl = document.getElementById(`${prefix}updates`);
+      const videosContainerEl = document.getElementById(`${prefix}videos-container`);
+      const blogsContainerEl = document.getElementById(`${prefix}blogs-container`);
+      const updatesHeader = document.getElementById(`${prefix}updates-header`);
+      const blogsHeader = document.getElementById(`${prefix}blogs-header`);
+      const videosHeader = document.getElementById(`${prefix}videos-header`);
+      const rangeLabelEl = document.getElementById(rangeLabelId || `${prefix}label`);
+
       updatesEl.innerHTML = "";
       videosContainerEl.innerHTML = "";
       blogsContainerEl.innerHTML = "";
+
+      const updates = normalizeItems(Array.isArray(payload?.[updatesKey]) ? payload[updatesKey] : []);
+      const videos = normalizeItems(Array.isArray(payload?.[videosKey]) ? payload[videosKey] : []);
+      const blogs = normalizeItems(Array.isArray(payload?.[blogsKey]) ? payload[blogsKey] : []);
+
+      const rangeStart = payload?.[rangeStartKey];
+      const rangeEnd = payload?.[rangeEndKey];
+      if (rangeStart && rangeEnd) {
+        rangeLabelEl.textContent = rangeFormatter(rangeStart, rangeEnd);
+      } else {
+        rangeLabelEl.textContent = rangeFallback;
+      }
+
+      updateLegendCounts(updates, prefix);
+      if (updatesHeader) updatesHeader.textContent = `Azure Updates (${updates.length})`;
+      if (blogsHeader) blogsHeader.textContent = `Azure Blogs (${blogs.length})`;
+      if (videosHeader) videosHeader.textContent = `Azure Videos (${videos.length})`;
+
+      if (updates.length) {
+        renderUpdatesList(updatesEl, updates);
+      }
+
+      const videoChannelOrder = ['NTFAQGuy', 'MicrosoftAzure', 'MSFTMechanics', 'MicrosoftSecurityCommunity', 'AzureArcServerForum'];
+      renderGroupedLists(videosContainerEl, videos, (item) => item.channel || 'Other', videoChannelOrder);
+
+      const categoryOrder = [
+        'Azure Arc Blog', 'Azure Architecture Blog', 'Azure Compute Blog', 'Azure Governance and Management Blog',
+        'Azure Infrastructure Blog', 'Azure Integration Services Blog', 'Azure Migration and Modernization Blog',
+        'Azure Networking Blog', 'Azure Observability Blog', 'Azure Storage Blog', 'Azure Tools Blog',
+        'Azure Virtual Desktop Blog', 'FinOps Blog', 'Linux and Open Source Blog',
+      ];
+      renderGroupedLists(blogsContainerEl, blogs, (item) => item.category || 'Other', categoryOrder);
+
+      bindCopyButtons(updatesEl);
+
+      return {
+        updatesCount: updates.length,
+        videosCount: videos.length,
+        blogsCount: blogs.length,
+        updatesLabel,
+        statusLabel,
+      };
+    }
+
+    // Dashboard Functions
+    async function loadUpdatesWeekly() {
+      const statusEl = document.getElementById("status");
+      const emptyEl = document.getElementById("empty");
+
+      statusEl.textContent = "Loading...";
       emptyEl.hidden = true;
 
       try {
@@ -519,103 +696,84 @@
         }
 
         const payload = await response.json();
-        const updatesRaw = Array.isArray(payload?.azure_updates) ? payload.azure_updates : [];
-        const videosRaw = Array.isArray(payload?.azure_youtube_videos) ? payload.azure_youtube_videos : [];
-        const blogsRaw = Array.isArray(payload?.azure_community_blog_headlines) ? payload.azure_community_blog_headlines : [];
 
-        const updates = normalizeItems(updatesRaw);
-        const videos = normalizeItems(videosRaw);
-        const blogs = normalizeItems(blogsRaw);
+        const weekly = renderDashboardSection({
+          prefix: "",
+          payload,
+          updatesKey: "azure_updates",
+          videosKey: "azure_youtube_videos",
+          blogsKey: "azure_community_blog_headlines",
+          rangeStartKey: "week_start",
+          rangeEndKey: "week_end",
+          rangeLabelId: "week-label",
+          rangeFormatter: formatWeekLabel,
+          rangeFallback: "Loaded from output.json",
+          updatesLabel: "week",
+          statusLabel: "weekly",
+        });
 
-        const weekLabel = document.getElementById("week-label");
-        if (payload.week_start && payload.week_end) {
-          weekLabel.textContent = formatWeekLabel(payload.week_start, payload.week_end);
-        } else {
-          weekLabel.textContent = "Loaded from output.json";
-        }
-
-        if (!updates.length && !videos.length && !blogs.length) {
+        if (
+          !weekly.updatesCount &&
+          !weekly.videosCount &&
+          !weekly.blogsCount
+        ) {
           emptyEl.hidden = false;
           statusEl.textContent = "Loaded 0 items";
-          if (updatesHeader) updatesHeader.textContent = "Azure Updates (0)";
-          if (blogsHeader) blogsHeader.textContent = "Azure Blogs (0)";
-          if (videosHeader) videosHeader.textContent = "Azure Videos (0)";
           return;
         }
 
-        updateLegendCounts(updates);
-        if (updatesHeader) updatesHeader.textContent = `Azure Updates (${updates.length})`;
-        if (blogsHeader) blogsHeader.textContent = `Azure Blogs (${blogs.length})`;
-        if (videosHeader) videosHeader.textContent = `Azure Videos (${videos.length})`;
+        statusEl.textContent =
+          `${weekly.updatesCount} updates, ${weekly.videosCount} videos, ${weekly.blogsCount} blogs`;
+      } catch (error) {
+        statusEl.textContent = "Failed to load output.json";
+        emptyEl.hidden = false;
+        emptyEl.textContent = `Error: ${error.message}`;
+      }
+    }
 
-        const updatesFragment = document.createDocumentFragment();
-        for (const item of updates) {
-          const li = document.createElement("li");
-          const displayTitle = getDisplayUpdateTitle(item);
-          li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${displayTitle}</a>`;
-          updatesFragment.appendChild(li);
+    async function loadUpdatesMonthly() {
+      const statusEl = document.getElementById("status-monthly");
+      const emptyEl = document.getElementById("empty-monthly");
+
+      statusEl.textContent = "Loading...";
+      emptyEl.hidden = true;
+
+      try {
+        const cacheBust = Date.now();
+        const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
 
-        const videosByChannel = {};
-        for (const item of videos) {
-          const channel = item.channel || 'Other';
-          if (!videosByChannel[channel]) {
-            videosByChannel[channel] = [];
-          }
-          videosByChannel[channel].push(item);
+        const payload = await response.json();
+
+        const monthly = renderDashboardSection({
+          prefix: "month-",
+          payload,
+          updatesKey: "azure_updates_month",
+          videosKey: "azure_youtube_videos_month",
+          blogsKey: "azure_community_blog_headlines_month",
+          rangeStartKey: "month_start",
+          rangeEndKey: "month_end",
+          rangeLabelId: "month-label",
+          rangeFormatter: formatMonthLabel,
+          rangeFallback: "Monthly range unavailable",
+          updatesLabel: "month",
+          statusLabel: "monthly",
+        });
+
+        if (
+          !monthly.updatesCount &&
+          !monthly.videosCount &&
+          !monthly.blogsCount
+        ) {
+          emptyEl.hidden = false;
+          statusEl.textContent = "Loaded 0 items";
+          return;
         }
 
-        const videoChannelOrder = ['NTFAQGuy', 'MicrosoftAzure', 'MSFTMechanics', 'MicrosoftSecurityCommunity', 'AzureArcServerForum'];
-
-        const videosFragment = document.createDocumentFragment();
-        for (const channel of videoChannelOrder) {
-          const channelItems = videosByChannel[channel] || [];
-          if (!channelItems.length) continue;
-
-          const ul = document.createElement("ul");
-          for (const item of channelItems) {
-            const li = document.createElement("li");
-            li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`;
-            ul.appendChild(li);
-          }
-          videosFragment.appendChild(ul);
-        }
-
-        const blogsByCategory = {};
-        const categoryOrder = [
-          'Azure Arc Blog', 'Azure Architecture Blog', 'Azure Compute Blog', 'Azure Governance and Management Blog',
-          'Azure Infrastructure Blog', 'Azure Integration Services Blog', 'Azure Migration and Modernization Blog',
-          'Azure Networking Blog', 'Azure Observability Blog', 'Azure Storage Blog', 'Azure Tools Blog',
-          'Azure Virtual Desktop Blog', 'FinOps Blog', 'Linux and Open Source Blog',
-        ];
-
-        for (const item of blogs) {
-          const category = item.category || 'Other';
-          if (!blogsByCategory[category]) {
-            blogsByCategory[category] = [];
-          }
-          blogsByCategory[category].push(item);
-        }
-
-        const blogsFragment = document.createDocumentFragment();
-        for (const category of categoryOrder) {
-          const categoryItems = blogsByCategory[category] || [];
-          if (!categoryItems.length) continue;
-
-          const ul = document.createElement("ul");
-          for (const item of categoryItems) {
-            const li = document.createElement("li");
-            li.innerHTML = `<a href="${item.url}" target="_blank" rel="noopener noreferrer">${item.title}</a>`;
-            ul.appendChild(li);
-          }
-          blogsFragment.appendChild(ul);
-        }
-
-        updatesEl.appendChild(updatesFragment);
-        videosContainerEl.appendChild(videosFragment);
-        blogsContainerEl.appendChild(blogsFragment);
-        bindCopyButtons(updatesEl);
-        statusEl.textContent = `Loaded ${updates.length} updates, ${videos.length} videos, and ${blogs.length} blog headlines`;
+        statusEl.textContent =
+          `${monthly.updatesCount} updates, ${monthly.videosCount} videos, ${monthly.blogsCount} blogs`;
       } catch (error) {
         statusEl.textContent = "Failed to load output.json";
         emptyEl.hidden = false;
@@ -687,32 +845,20 @@
       return output;
     }
 
-    async function loadReport() {
-      const summaryBodyEl = document.getElementById("summary-body");
-      const summaryEmptyEl = document.getElementById("summary-empty");
-      const cardsEl = document.getElementById("cards");
-      const weekLabelEl = document.getElementById("report-week-label");
+    function renderReportSection(section) {
+      const {
+        updates,
+        labelEl,
+        labelText,
+        summaryBodyEl,
+        summaryEmptyEl,
+        cardsEl,
+      } = section;
 
+      labelEl.textContent = labelText;
       summaryBodyEl.innerHTML = "";
       cardsEl.innerHTML = "";
       summaryEmptyEl.hidden = true;
-
-      const cacheBust = Date.now();
-      const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const updates = Array.isArray(payload?.azure_updates)
-        ? payload.azure_updates.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-        : [];
-
-      if (payload.week_start && payload.week_end) {
-        weekLabelEl.textContent = formatWeekLabel(payload.week_start, payload.week_end);
-      } else {
-        weekLabelEl.textContent = "Date range unavailable";
-      }
 
       if (!updates.length) {
         summaryEmptyEl.hidden = false;
@@ -759,29 +905,118 @@
       }
     }
 
-    // Tab Switching
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tabName = btn.dataset.tab;
+    // Load functions for individual report tabs
+    async function loadReportWeekly() {
+      const summaryBodyEl = document.getElementById("summary-body-week");
+      const summaryEmptyEl = document.getElementById("summary-empty-week");
+      const cardsEl = document.getElementById("cards-week");
+      const labelEl = document.getElementById("report-week-label");
 
-        // Update button states
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+      const cacheBust = Date.now();
+      const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
 
-        // Update content visibility
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-        document.getElementById(tabName).classList.add('active');
+      const payload = await response.json();
+      const updates = Array.isArray(payload?.azure_updates)
+        ? payload.azure_updates.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+        : [];
 
-        // Load data when switching to report tab
-        if (tabName === 'report' && !document.querySelector('#cards').hasChildNodes()) {
-          loadReport();
-        }
+      const labelText = payload.week_start && payload.week_end
+        ? formatWeekLabel(payload.week_start, payload.week_end)
+        : "Weekly date range unavailable";
+
+      renderReportSection({
+        updates,
+        labelEl,
+        labelText,
+        summaryBodyEl,
+        summaryEmptyEl,
+        cardsEl,
       });
-    });
+    }
 
-    // Initial Load
-    document.getElementById("refresh-btn").addEventListener("click", loadUpdates);
-    loadUpdates();
+    async function loadReportMonthly() {
+      const summaryBodyEl = document.getElementById("summary-body-month");
+      const summaryEmptyEl = document.getElementById("summary-empty-month");
+      const cardsEl = document.getElementById("cards-month");
+      const labelEl = document.getElementById("report-month-label");
+
+      const cacheBust = Date.now();
+      const response = await fetch(`output.json?t=${cacheBust}`, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const updates = Array.isArray(payload?.azure_updates_month)
+        ? payload.azure_updates_month.slice().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+        : [];
+
+      const labelText = payload.month_start && payload.month_end
+        ? formatMonthLabel(payload.month_start, payload.month_end)
+        : "Monthly date range unavailable";
+
+      renderReportSection({
+        updates,
+        labelEl,
+        labelText,
+        summaryBodyEl,
+        summaryEmptyEl,
+        cardsEl,
+      });
+    }
+
+    // Tab Switching
+    function initializeTabs() {
+      const tabLoadedState = {
+        'dashboard-weekly': false,
+        'dashboard-monthly': false,
+        'report-weekly': false,
+        'report-monthly': false,
+      };
+
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const tabName = btn.dataset.tab;
+
+          // Update button states
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          // Update content visibility
+          document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+          document.getElementById(tabName).classList.add('active');
+
+          // Load data only on first tab activation
+          if (!tabLoadedState[tabName]) {
+            if (tabName === 'dashboard-weekly') {
+              loadUpdatesWeekly();
+            } else if (tabName === 'dashboard-monthly') {
+              loadUpdatesMonthly();
+            } else if (tabName === 'report-weekly') {
+              loadReportWeekly();
+            } else if (tabName === 'report-monthly') {
+              loadReportMonthly();
+            }
+            tabLoadedState[tabName] = true;
+          }
+        });
+      });
+    }
+
+    // Initialize on DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeTabs);
+    } else {
+      initializeTabs();
+    }
+
+    // Initial Load - load weekly dashboard on page load
+    document.getElementById("refresh-btn").addEventListener("click", loadUpdatesWeekly);
+    document.getElementById("refresh-monthly-btn").addEventListener("click", loadUpdatesMonthly);
+    loadUpdatesWeekly();
   </script>
 </body>
 </html>

@@ -7,7 +7,7 @@ from src.scraper import (
     fetch_azure_youtube_videos,
     fetch_techcommunity,
 )
-from src.scraper import get_previous_week_range
+from src.scraper import get_current_month_to_date_range, get_previous_week_range
 
 
 def main():
@@ -15,19 +15,32 @@ def main():
     p.add_argument('--out', type=str, default='output.json', help='Output JSON file')
     args = p.parse_args()
 
-    start_date, end_date = get_previous_week_range()
-    tech = fetch_techcommunity(start_date, end_date)
-    updates = fetch_azure_updates(start_date, end_date)
-    azure_blog_headlines = fetch_azure_community_blog_headlines(start_date, end_date)
-    azure_youtube_videos = fetch_azure_youtube_videos(start_date, end_date)
+    week_start_date, week_end_date = get_previous_week_range()
+    month_start_date, month_end_date = get_current_month_to_date_range()
+
+    tech = fetch_techcommunity(week_start_date, week_end_date)
+    updates = fetch_azure_updates(week_start_date, week_end_date)
+    azure_blog_headlines = fetch_azure_community_blog_headlines(week_start_date, week_end_date)
+    azure_youtube_videos = fetch_azure_youtube_videos(week_start_date, week_end_date)
+
+    tech_month = fetch_techcommunity(month_start_date, month_end_date)
+    updates_month = fetch_azure_updates(month_start_date, month_end_date)
+    azure_blog_headlines_month = fetch_azure_community_blog_headlines(month_start_date, month_end_date)
+    azure_youtube_videos_month = fetch_azure_youtube_videos(month_start_date, month_end_date)
 
     out = {
-        'week_start': start_date.isoformat(),
-        'week_end': end_date.isoformat(),
+        'week_start': week_start_date.isoformat(),
+        'week_end': week_end_date.isoformat(),
         'techcommunity': tech,
         'azure_updates': updates,
         'azure_community_blog_headlines': azure_blog_headlines,
         'azure_youtube_videos': azure_youtube_videos,
+        'month_start': month_start_date.isoformat(),
+        'month_end': month_end_date.isoformat(),
+        'techcommunity_month': tech_month,
+        'azure_updates_month': updates_month,
+        'azure_community_blog_headlines_month': azure_blog_headlines_month,
+        'azure_youtube_videos_month': azure_youtube_videos_month,
     }
 
     Path(args.out).write_text(json.dumps(out, indent=2, ensure_ascii=False))
@@ -36,7 +49,11 @@ def main():
         f'{len(updates)} azure updates, and '
         f'{len(azure_blog_headlines)} azure community blog headlines, and '
         f'{len(azure_youtube_videos)} Azure YouTube videos '
-        f'to {args.out} (week of {start_date} to {end_date})'
+        f'to {args.out} (week of {week_start_date} to {week_end_date}); '
+        f'{len(updates_month)} azure updates, '
+        f'{len(azure_blog_headlines_month)} azure community blog headlines, and '
+        f'{len(azure_youtube_videos_month)} Azure YouTube videos '
+        f'(current month to date: {month_start_date} to {month_end_date})'
     )
 
 

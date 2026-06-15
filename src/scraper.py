@@ -555,6 +555,22 @@ def get_previous_week_range() -> Tuple[date_type, date_type]:
     return prev_monday, prev_sunday
 
 
+def get_previous_month_range() -> Tuple[date_type, date_type]:
+    """Return the first and last day of the most recently completed month."""
+    today = date_type.today()
+    first_of_current_month = today.replace(day=1)
+    last_of_previous_month = first_of_current_month - timedelta(days=1)
+    first_of_previous_month = last_of_previous_month.replace(day=1)
+    return first_of_previous_month, last_of_previous_month
+
+
+def get_current_month_to_date_range() -> Tuple[date_type, date_type]:
+    """Return the first day of the current month through today."""
+    today = date_type.today()
+    first_of_current_month = today.replace(day=1)
+    return first_of_current_month, today
+
+
 def filter_date_range(
     items: List[Dict],
     start_date: date_type,
