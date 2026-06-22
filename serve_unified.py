@@ -73,21 +73,34 @@ def main() -> None:
         f"Refreshing weekly data for {start_date} to {end_date} "
         f"and monthly data for {month_start} to {month_end}..."
     )
-    payload = refresh_output(args.out)
-    print(
-        "Wrote "
-        f"{len(payload['techcommunity'])} techcommunity items, "
-        f"{len(payload['azure_updates'])} azure updates, "
-        f"{len(payload['azure_community_blog_headlines'])} azure community blog headlines, "
-        f"{len(payload['azure_youtube_videos'])} Azure YouTube videos "
-        f"for previous week, plus "
-        f"{len(payload['techcommunity_month'])} techcommunity items, "
-        f"{len(payload['azure_updates_month'])} azure updates, "
-        f"{len(payload['azure_community_blog_headlines_month'])} azure community blog headlines, "
-        f"{len(payload['azure_youtube_videos_month'])} Azure YouTube videos "
-        f"for current month to date "
-        f"to {args.out}"
-    )
+    try:
+        payload = refresh_output(args.out)
+        print(
+            "Wrote "
+            f"{len(payload['techcommunity'])} techcommunity items, "
+            f"{len(payload['azure_updates'])} azure updates, "
+            f"{len(payload['azure_community_blog_headlines'])} azure community blog headlines, "
+            f"{len(payload['azure_youtube_videos'])} Azure YouTube videos "
+            f"for previous week, plus "
+            f"{len(payload['techcommunity_month'])} techcommunity items, "
+            f"{len(payload['azure_updates_month'])} azure updates, "
+            f"{len(payload['azure_community_blog_headlines_month'])} azure community blog headlines, "
+            f"{len(payload['azure_youtube_videos_month'])} Azure YouTube videos "
+            f"for current month to date "
+            f"to {args.out}"
+        )
+    except Exception as exc:  # noqa: BLE001
+        if Path(args.out).exists():
+            print(
+                f"WARNING: Failed to refresh data ({exc}). "
+                f"Serving existing {args.out} instead."
+            )
+        else:
+            print(
+                f"ERROR: Failed to refresh data ({exc}) and no existing "
+                f"{args.out} was found to serve."
+            )
+            raise
 
     server = ThreadingHTTPServer((args.bind, args.port), UnifiedHandler)
     print(f"Serving unified dashboard at http://{args.bind}:{args.port}/")
