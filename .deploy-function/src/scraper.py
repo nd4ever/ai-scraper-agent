@@ -396,7 +396,7 @@ def fetch_youtube_channel_videos(
                 href = m.group(0)
 
         date_iso = _parse_date_to_iso(date_tag.get_text(strip=True) if date_tag else '')
-        if not title or not href or not date_iso or not _is_azure_related_video_title(title):
+        if not title or not href or not date_iso:
             continue
 
         items.append({
