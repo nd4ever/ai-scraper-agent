@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 from typing import List, Dict, Optional, Tuple
 import json
 import re
+import time
 import warnings
 
 try:
@@ -113,10 +114,21 @@ AZURE_VIDEO_TITLE_KEYWORDS = [
 ]
 
 
-def fetch_url(url: str) -> str:
-    resp = requests.get(url, headers=HEADERS, timeout=15)
-    resp.raise_for_status()
-    return resp.text
+def fetch_url(url: str, retries: int = 3, backoff: float = 2.0) -> str:
+    """Fetch a URL, retrying transient failures (403/429/5xx) with backoff."""
+    last_exc: Optional[Exception] = None
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, headers=HEADERS, timeout=15)
+            if resp.status_code in (403, 429) or resp.status_code >= 500:
+                resp.raise_for_status()
+            resp.raise_for_status()
+            return resp.text
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            if attempt < retries - 1:
+                time.sleep(backoff * (attempt + 1))
+    raise last_exc
 
 
 def parse_date(text: str) -> Optional[datetime]:
@@ -184,6 +196,12 @@ def _extract_azure_update_status_and_title(title: str) -> Tuple[Optional[str], s
     m = re.match(r'^(Generally Available|Public Preview|Private Preview|Retirement):\s*(.+)$', body, re.I)
     if m:
         return m.group(1).strip(), m.group(2).strip()
+
+    # Feature announcements ("Announcing: ...") carry no release ring in the feed.
+    # Classify them as "General Announcement" and strip the "Announcing:" prefix.
+    m = re.match(r'^Announcing:\s*(.+)$', body, re.I)
+    if m:
+        return 'General Announcement', m.group(1).strip()
 
     return bracket_status, body
 
@@ -553,10 +571,14 @@ def filter_recent(items: List[Dict], days: int = 7) -> List[Dict]:
     return filtered
 
 
-def get_previous_week_range() -> Tuple[date_type, date_type]:
-    """Return (monday, sunday) of the most recently completed Mon–Sun week."""
-    today = date_type.today()
+def get_previous_week_range(
+    today: Optional[date_type] = None,
+) -> Tuple[date_type, date_type]:
+    """Return the latest reporting week, including the current week on Sunday."""
+    today = today or date_type.today()
     current_monday = today - timedelta(days=today.weekday())
+    if today.weekday() == 6:
+        return current_monday, today
     prev_monday = current_monday - timedelta(weeks=1)
     prev_sunday = current_monday - timedelta(days=1)
     return prev_monday, prev_sunday

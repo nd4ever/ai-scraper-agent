@@ -12,19 +12,28 @@ from src.scraper import (
 from src.scraper import get_current_month_to_date_range, get_previous_week_range
 
 
+def _safe_fetch(label, fetch_fn, start_date, end_date):
+    """Run a source fetch, returning [] (instead of aborting) on failure."""
+    try:
+        return fetch_fn(start_date, end_date)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: {label} fetch failed ({exc}). Using empty list for this source.")
+        return []
+
+
 def refresh_output(output_path: str) -> dict:
     week_start_date, week_end_date = get_previous_week_range()
     month_start_date, month_end_date = get_current_month_to_date_range()
 
-    tech = fetch_techcommunity(week_start_date, week_end_date)
-    updates = fetch_azure_updates(week_start_date, week_end_date)
-    azure_blog_headlines = fetch_azure_community_blog_headlines(week_start_date, week_end_date)
-    azure_youtube_videos = fetch_azure_youtube_videos(week_start_date, week_end_date)
+    tech = _safe_fetch("techcommunity (week)", fetch_techcommunity, week_start_date, week_end_date)
+    updates = _safe_fetch("azure_updates (week)", fetch_azure_updates, week_start_date, week_end_date)
+    azure_blog_headlines = _safe_fetch("azure_community_blog_headlines (week)", fetch_azure_community_blog_headlines, week_start_date, week_end_date)
+    azure_youtube_videos = _safe_fetch("azure_youtube_videos (week)", fetch_azure_youtube_videos, week_start_date, week_end_date)
 
-    tech_month = fetch_techcommunity(month_start_date, month_end_date)
-    updates_month = fetch_azure_updates(month_start_date, month_end_date)
-    azure_blog_headlines_month = fetch_azure_community_blog_headlines(month_start_date, month_end_date)
-    azure_youtube_videos_month = fetch_azure_youtube_videos(month_start_date, month_end_date)
+    tech_month = _safe_fetch("techcommunity (month)", fetch_techcommunity, month_start_date, month_end_date)
+    updates_month = _safe_fetch("azure_updates (month)", fetch_azure_updates, month_start_date, month_end_date)
+    azure_blog_headlines_month = _safe_fetch("azure_community_blog_headlines (month)", fetch_azure_community_blog_headlines, month_start_date, month_end_date)
+    azure_youtube_videos_month = _safe_fetch("azure_youtube_videos (month)", fetch_azure_youtube_videos, month_start_date, month_end_date)
 
     payload = {
         "week_start": week_start_date.isoformat(),
