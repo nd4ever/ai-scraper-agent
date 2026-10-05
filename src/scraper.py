@@ -193,7 +193,10 @@ def _extract_azure_update_status_and_title(title: str) -> Tuple[Optional[str], s
 
     # Prefer the explicit release ring that appears before the announcement title.
     # Example: "[Launched] Generally Available: ..." -> status="Generally Available".
-    m = re.match(r'^(Generally Available|Public Preview|Private Preview|Retirement):\s*(.+)$', body, re.I)
+    # Also tolerate a trailing qualifier word before the colon, e.g.
+    # "Retirement Update: ..." or "Retirement Notice: ..." -> status="Retirement".
+    # Also tolerate stray whitespace before the colon, e.g. "Public Preview : ...".
+    m = re.match(r'^(Generally Available|Public Preview|Private Preview|Retirement)(?:\s+\w+)?\s*:\s*(.+)$', body, re.I)
     if m:
         return m.group(1).strip(), m.group(2).strip()
 
@@ -571,10 +574,14 @@ def filter_recent(items: List[Dict], days: int = 7) -> List[Dict]:
     return filtered
 
 
-def get_previous_week_range() -> Tuple[date_type, date_type]:
-    """Return (monday, sunday) of the most recently completed Mon–Sun week."""
-    today = date_type.today()
+def get_previous_week_range(
+    today: Optional[date_type] = None,
+) -> Tuple[date_type, date_type]:
+    """Return the latest reporting week, including the current week on Sunday."""
+    today = today or date_type.today()
     current_monday = today - timedelta(days=today.weekday())
+    if today.weekday() == 6:
+        return current_monday, today
     prev_monday = current_monday - timedelta(weeks=1)
     prev_sunday = current_monday - timedelta(days=1)
     return prev_monday, prev_sunday
